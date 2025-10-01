@@ -5,14 +5,18 @@ import threading
 import time
 import sys
 
+# Streaming recognition parameters
 chunk_size = [0, 10, 5]  # [0, 10, 5] 600ms, [0, 8, 4] 480ms
 encoder_chunk_look_back = 4  # number of chunks to lookback for encoder self-attention
 decoder_chunk_look_back = (
     1  # number of encoder chunks to lookback for decoder cross-attention
 )
 
-# Load model without VAD first to avoid the chunk_size issue
-model = AutoModel(model="paraformer-zh-streaming")
+# Load model for streaming recognition (without VAD for streaming mode)
+# According to FunASR docs, streaming models should be used separately from VAD
+asr_model = AutoModel(model="paraformer-zh-streaming")
+punc_model = AutoModel(model="ct-punc")
+
 
 # Audio parameters
 SAMPLE_RATE = 16000  # FunASR typically uses 16kHz
@@ -20,6 +24,7 @@ CHANNELS = 1
 DTYPE = np.float32
 chunk_stride = chunk_size[1] * 960  # 600ms, same as original
 chunk_duration = chunk_stride / SAMPLE_RATE  # Duration in seconds
+
 
 # Global variables for audio streaming
 audio_buffer = np.array([], dtype=DTYPE)
@@ -54,7 +59,7 @@ def process_audio():
                 audio_buffer = audio_buffer[chunk_stride:]
 
                 # Process with FunASR
-                res = model.generate(
+                res = asr_model.generate(
                     input=speech_chunk,
                     cache=cache,
                     is_final=False,  # Always False for streaming
@@ -64,7 +69,18 @@ def process_audio():
                 )
 
                 if res and len(res) > 0 and "text" in res[0]:
-                    print(f"Recognized: {res[0]['text']}")
+                    text = res[0]["text"]
+                    if text.strip():  # Only process non-empty text
+                        try:
+                            res_with_punc = punc_model.generate(input=text)
+                            if res_with_punc and len(res_with_punc) > 0:
+                                punctuated_text = res_with_punc[0]["text"]
+                                print(f"Recognized: {punctuated_text}")
+                            else:
+                                print(f"Recognized: {text}")
+                        except Exception as e:
+                            print(f"Punctuation error: {e}")
+                            print(f"Recognized: {text}")
 
             time.sleep(0.01)  # Small delay to prevent excessive CPU usage
 
@@ -74,7 +90,7 @@ def process_audio():
 
         # Process remaining audio
         if len(audio_buffer) > 0:
-            res = model.generate(
+            res = asr_model.generate(
                 input=audio_buffer,
                 cache=cache,
                 is_final=True,  # Final chunk
@@ -83,7 +99,18 @@ def process_audio():
                 decoder_chunk_look_back=decoder_chunk_look_back,
             )
             if res and len(res) > 0 and "text" in res[0]:
-                print(f"Final recognition: {res[0]['text']}")
+                final_text = res[0]["text"]
+                if final_text.strip():
+                    try:
+                        res_with_punc = punc_model.generate(input=final_text)
+                        if res_with_punc and len(res_with_punc) > 0:
+                            punctuated_text = res_with_punc[0]["text"]
+                            print(f"Final recognition: {punctuated_text}")
+                        else:
+                            print(f"Final recognition: {final_text}")
+                    except Exception as e:
+                        print(f"Punctuation error: {e}")
+                        print(f"Final recognition: {final_text}")
 
 
 def main():
