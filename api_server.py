@@ -1,6 +1,5 @@
 from funasr import AutoModel
 import numpy as np
-import asyncio
 import json
 import base64
 import struct

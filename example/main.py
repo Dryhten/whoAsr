@@ -12,11 +12,7 @@ decoder_chunk_look_back = (
     1  # number of encoder chunks to lookback for decoder cross-attention
 )
 
-# Load model for streaming recognition (without VAD for streaming mode)
-# According to FunASR docs, streaming models should be used separately from VAD
-asr_model = AutoModel(model="paraformer-zh-streaming")
-punc_model = AutoModel(model="ct-punc")
-
+model = AutoModel(model="paraformer-zh-streaming")
 
 # Audio parameters
 SAMPLE_RATE = 16000  # FunASR typically uses 16kHz
@@ -59,7 +55,7 @@ def process_audio():
                 audio_buffer = audio_buffer[chunk_stride:]
 
                 # Process with FunASR
-                res = asr_model.generate(
+                res = model.generate(
                     input=speech_chunk,
                     cache=cache,
                     is_final=False,  # Always False for streaming
@@ -72,7 +68,7 @@ def process_audio():
                     text = res[0]["text"]
                     if text.strip():  # Only process non-empty text
                         try:
-                            res_with_punc = punc_model.generate(input=text)
+                            res_with_punc = model.generate(input=text)
                             if res_with_punc and len(res_with_punc) > 0:
                                 punctuated_text = res_with_punc[0]["text"]
                                 print(f"Recognized: {punctuated_text}")
@@ -90,7 +86,7 @@ def process_audio():
 
         # Process remaining audio
         if len(audio_buffer) > 0:
-            res = asr_model.generate(
+            res = model.generate(
                 input=audio_buffer,
                 cache=cache,
                 is_final=True,  # Final chunk
@@ -100,17 +96,7 @@ def process_audio():
             )
             if res and len(res) > 0 and "text" in res[0]:
                 final_text = res[0]["text"]
-                if final_text.strip():
-                    try:
-                        res_with_punc = punc_model.generate(input=final_text)
-                        if res_with_punc and len(res_with_punc) > 0:
-                            punctuated_text = res_with_punc[0]["text"]
-                            print(f"Final recognition: {punctuated_text}")
-                        else:
-                            print(f"Final recognition: {final_text}")
-                    except Exception as e:
-                        print(f"Punctuation error: {e}")
-                        print(f"Final recognition: {final_text}")
+                print(f"Recognized: {final_text}")
 
 
 def main():
