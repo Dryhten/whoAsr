@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Create a separate debug logger for detailed information
 debug_logger = logging.getLogger("debug")
-debug_logger.setLevel(logging.DEBUG)
+debug_logger.setLevel(logging.INFO)
 handler = logging.StreamHandler()
 handler.setFormatter(
     logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -86,13 +86,7 @@ def load_model():
     if model is None:
         logger.info("Loading FunASR model...")
         try:
-            model = AutoModel(
-                model="paraformer-zh-streaming",
-                vad_model="fsmn-vad",
-                vad_kwargs={"max_single_segment_time": 30000},
-                punc_model="ct-punc",
-                spk_model="cam++",
-            )
+            model = AutoModel(model="paraformer-zh-streaming")
             logger.info("Model loaded successfully")
         except Exception as e:
             logger.error(f"Failed to load model: {e}")
@@ -119,9 +113,6 @@ def decode_audio_chunk(audio_data: str) -> np.ndarray:
         # Try float32 first (most likely after our client fixes)
         try:
             audio_array = np.frombuffer(audio_bytes, dtype=np.float32)
-            debug_logger.debug(
-                f"Successfully decoded as float32, length: {len(audio_array)}"
-            )
 
             # Check if the data looks reasonable
             if np.any(np.abs(audio_array) > 10):
@@ -139,9 +130,7 @@ def decode_audio_chunk(audio_data: str) -> np.ndarray:
             audio_array = (
                 audio_array.astype(np.float32) / 32768.0
             )  # Normalize to [-1, 1]
-            debug_logger.debug(
-                f"Successfully decoded as int16 and converted, length: {len(audio_array)}"
-            )
+
             return audio_array
         except Exception as e:
             debug_logger.debug(f"Int16 decode failed: {e}")
@@ -152,9 +141,7 @@ def decode_audio_chunk(audio_data: str) -> np.ndarray:
             audio_array = (
                 audio_array.astype(np.float32) / 2147483648.0
             )  # Normalize to [-1, 1]
-            debug_logger.debug(
-                f"Successfully decoded as int32 and converted, length: {len(audio_array)}"
-            )
+
             return audio_array
         except Exception as e:
             debug_logger.debug(f"Int32 decode failed: {e}")
@@ -179,10 +166,6 @@ async def process_audio_chunk(client_id: str, audio_chunk: np.ndarray):
     # Add to buffer
     state["audio_buffer"] = np.append(state["audio_buffer"], audio_chunk)
 
-    debug_logger.debug(
-        f"Client {client_id}: buffer size {len(state['audio_buffer'])}, chunk size {chunk_stride}"
-    )
-
     # Process if we have enough data
     if len(state["audio_buffer"]) >= chunk_stride:
         # Extract chunk
@@ -199,10 +182,6 @@ async def process_audio_chunk(client_id: str, audio_chunk: np.ndarray):
                 logger.error(f"Speech chunk is not numpy array: {type(speech_chunk)}")
                 return
 
-            debug_logger.debug(
-                f"Client {client_id}: Input shape: {speech_chunk.shape}, dtype: {speech_chunk.dtype}"
-            )
-
             # Process with FunASR
             res = model.generate(
                 input=speech_chunk,
@@ -212,8 +191,6 @@ async def process_audio_chunk(client_id: str, audio_chunk: np.ndarray):
                 encoder_chunk_look_back=encoder_chunk_look_back,
                 decoder_chunk_look_back=decoder_chunk_look_back,
             )
-
-            debug_logger.debug(f"Client {client_id}: FunASR result: {res}")
 
             if res and len(res) > 0 and "text" in res[0]:
                 result_text = res[0]["text"]

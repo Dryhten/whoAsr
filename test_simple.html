@@ -3,11 +3,68 @@
 <head>
     <title>Simple Speech Recognition Test</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .status { margin: 10px 0; padding: 10px; background: #f0f0f0; }
-        .debug { margin: 10px 0; padding: 10px; background: #fff3cd; }
-        button { padding: 10px 20px; margin: 5px; }
-        .results { margin: 20px 0; padding: 10px; background: #f9f9f9; min-height: 100px; }
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            box-sizing: border-box;
+        }
+        .status { 
+            margin: 10px 0; 
+            padding: 10px; 
+            background: #f0f0f0; 
+            border-radius: 5px;
+        }
+        .controls {
+            margin: 10px 0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button { 
+            padding: 10px 20px; 
+            margin: 0; 
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        #startBtn { background: #28a745; color: white; }
+        #stopBtn { background: #dc3545; color: white; }
+        #reconnectBtn { background: #007bff; color: white; }
+        button:disabled { 
+            background: #6c757d; 
+            cursor: not-allowed; 
+        }
+        .results { 
+            margin: 10px 0; 
+            padding: 10px; 
+            background: #f9f9f9; 
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+        }
+        .result-item {
+            padding: 5px 10px;
+            margin: 2px 0;
+            border-left: 3px solid #007bff;
+            background: white;
+            border-radius: 3px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .result-item.final {
+            border-left-color: #28a745;
+            font-weight: bold;
+        }
+        h1, h3 {
+            margin: 10px 0;
+        }
     </style>
 </head>
 <body>
@@ -15,10 +72,10 @@
     
     <div class="status" id="status">Status: Connecting...</div>
     
-    <div>
+    <div class="controls">
         <button id="startBtn" onclick="startRecording()" disabled>Start Recording</button>
         <button id="stopBtn" onclick="stopRecording()" disabled>Stop Recording</button>
-        <button id="testBtn" onclick="sendTestAudio()">Send Test Audio</button>
+        <button id="reconnectBtn" onclick="reconnectWebSocket()">Reconnect</button>
     </div>
     
     <div class="results">
@@ -43,12 +100,31 @@
 
         function addResult(text, isFinal) {
             const resultsList = document.getElementById('resultsList');
-            const resultItem = document.createElement('div');
-            resultItem.style.borderLeft = '3px solid ' + (isFinal ? '#28a745' : '#007bff');
-            resultItem.style.paddingLeft = '10px';
-            resultItem.style.margin = '5px 0';
-            resultItem.textContent = text + (isFinal ? ' ✓' : '...');
-            resultsList.appendChild(resultItem);
+            
+            // If it's a final result, update the last non-final result if exists
+            if (isFinal) {
+                const lastResult = resultsList.lastElementChild;
+                if (lastResult && !lastResult.classList.contains('final')) {
+                    lastResult.textContent += text;
+                    lastResult.classList.add('final');
+                    return;
+                }
+            }
+            
+            // Check if there's a non-final result to append to
+            const lastResult = resultsList.lastElementChild;
+            if (lastResult && !lastResult.classList.contains('final')) {
+                // Append to existing result
+                lastResult.textContent += text;
+            } else {
+                // Create new result item
+                const resultItem = document.createElement('div');
+                resultItem.className = 'result-item' + (isFinal ? ' final' : '');
+                resultItem.textContent = text;
+                resultsList.appendChild(resultItem);
+            }
+            
+            // Auto scroll to bottom
             resultsList.scrollTop = resultsList.scrollHeight;
         }
 
@@ -63,7 +139,7 @@
                 updateStatus('Connected');
                 updateDebug('WebSocket connected');
                 document.getElementById('startBtn').disabled = false;
-                document.getElementById('testBtn').disabled = false;
+                document.getElementById('reconnectBtn').disabled = true;
             };
             
             ws.onmessage = function(event) {
@@ -86,13 +162,30 @@
                 updateDebug('WebSocket disconnected');
                 document.getElementById('startBtn').disabled = true;
                 document.getElementById('stopBtn').disabled = true;
-                document.getElementById('testBtn').disabled = true;
+                document.getElementById('reconnectBtn').disabled = false;
             };
             
             ws.onerror = function(error) {
                 updateStatus('Connection error');
                 updateDebug('WebSocket error: ' + error);
+                document.getElementById('reconnectBtn').disabled = false;
             };
+        }
+
+        function reconnectWebSocket() {
+            // Close existing connection if any
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            
+            // Clear results
+            document.getElementById('resultsList').innerHTML = '';
+            
+            // Reconnect
+            document.getElementById('reconnectBtn').disabled = true;
+            updateStatus('Reconnecting...');
+            connectWebSocket();
         }
 
         async function startRecording() {
@@ -192,27 +285,6 @@
                 // Send stop message
                 ws.send(JSON.stringify({ type: 'stop_recording' }));
             }
-        }
-
-        function sendTestAudio() {
-            // Generate a simple sine wave test signal
-            const sampleRate = 16000;
-            const duration = 1; // 1 second
-            const frequency = 440; // A4 note
-            const numSamples = sampleRate * duration;
-            
-            const audioData = new Float32Array(numSamples);
-            for (let i = 0; i < numSamples; i++) {
-                audioData[i] = Math.sin(2 * Math.PI * frequency * i / sampleRate) * 0.5;
-            }
-            
-            const base64Audio = btoa(String.fromCharCode(...new Uint8Array(audioData.buffer)));
-            updateDebug('Sending test audio, length: ' + audioData.length);
-            
-            ws.send(JSON.stringify({
-                type: 'audio_chunk',
-                data: base64Audio
-            }));
         }
 
         // Connect WebSocket on page load
