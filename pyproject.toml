@@ -1,0 +1,27 @@
+[project]
+name = "whoasr"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "funasr==1.2.7",
+    "modelscope==1.30.0",
+    "torch",
+    "torchaudio>=2.8.0",
+    "torchvision",
+    "pyaudio",
+    "numpy",
+    "fastapi",
+    "uvicorn[standard]",
+    "websockets",
+]
+
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cpu"
+default = true
+
+[[tool.uv.index]]
+name = "tsinghua"
+url = "https://pypi.tuna.tsinghua.edu.cn/simple/"

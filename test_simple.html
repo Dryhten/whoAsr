@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Speech Recognition Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .status { margin: 10px 0; padding: 10px; background: #f0f0f0; }
+        .debug { margin: 10px 0; padding: 10px; background: #fff3cd; }
+        button { padding: 10px 20px; margin: 5px; }
+        .results { margin: 20px 0; padding: 10px; background: #f9f9f9; min-height: 100px; }
+    </style>
+</head>
+<body>
+    <h1>Simple Speech Recognition Test</h1>
+    
+    <div class="status" id="status">Status: Connecting...</div>
+    
+    <div>
+        <button id="startBtn" onclick="startRecording()" disabled>Start Recording</button>
+        <button id="stopBtn" onclick="stopRecording()" disabled>Stop Recording</button>
+        <button id="testBtn" onclick="sendTestAudio()">Send Test Audio</button>
+    </div>
+    
+    <div class="results">
+        <h3>Results:</h3>
+        <div id="resultsList"></div>
+    </div>
+
+    <script>
+        let ws = null;
+        let mediaRecorder = null;
+        let isRecording = false;
+        let audioContext = null;
+
+        function updateStatus(message) {
+            document.getElementById('status').textContent = 'Status: ' + message;
+        }
+
+        function updateDebug(message) {
+            // Only output to console, not to the UI
+            console.log(new Date().toLocaleTimeString() + ': ' + message);
+        }
+
+        function addResult(text, isFinal) {
+            const resultsList = document.getElementById('resultsList');
+            const resultItem = document.createElement('div');
+            resultItem.style.borderLeft = '3px solid ' + (isFinal ? '#28a745' : '#007bff');
+            resultItem.style.paddingLeft = '10px';
+            resultItem.style.margin = '5px 0';
+            resultItem.textContent = text + (isFinal ? ' ✓' : '...');
+            resultsList.appendChild(resultItem);
+            resultsList.scrollTop = resultsList.scrollHeight;
+        }
+
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/${Date.now()}`;
+            
+            updateDebug('Connecting to: ' + wsUrl);
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function() {
+                updateStatus('Connected');
+                updateDebug('WebSocket connected');
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('testBtn').disabled = false;
+            };
+            
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                updateDebug('Received: ' + JSON.stringify(data));
+                
+                if (data.type === 'recognition_result') {
+                    addResult(data.text, data.is_final);
+                } else if (data.type === 'error') {
+                    updateStatus('Error: ' + data.message);
+                    updateDebug('Error: ' + data.message);
+                } else if (data.type === 'status') {
+                    updateStatus(data.message);
+                    updateDebug('Status: ' + data.message);
+                }
+            };
+            
+            ws.onclose = function() {
+                updateStatus('Disconnected');
+                updateDebug('WebSocket disconnected');
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = true;
+                document.getElementById('testBtn').disabled = true;
+            };
+            
+            ws.onerror = function(error) {
+                updateStatus('Connection error');
+                updateDebug('WebSocket error: ' + error);
+            };
+        }
+
+        async function startRecording() {
+            try {
+                updateDebug('Requesting microphone access...');
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // Initialize audio context
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                updateDebug('Audio context sample rate: ' + audioContext.sampleRate);
+                
+                // Use Web Audio API for direct audio capture
+                const source = audioContext.createMediaStreamSource(stream);
+                const processor = audioContext.createScriptProcessor(4096, 1, 1);
+                
+                processor.onaudioprocess = function(e) {
+                    if (isRecording && ws && ws.readyState === WebSocket.OPEN) {
+                        const inputBuffer = e.inputBuffer;
+                        const inputData = inputBuffer.getChannelData(0);
+                        
+                        updateDebug('Audio chunk received, length: ' + inputData.length);
+                        
+                        // Resample to 16kHz if needed
+                        const targetSampleRate = 16000;
+                        let audioData = inputData;
+                        
+                        if (audioContext.sampleRate !== targetSampleRate) {
+                            const ratio = audioContext.sampleRate / targetSampleRate;
+                            const newLength = Math.floor(inputData.length / ratio);
+                            audioData = new Float32Array(newLength);
+                            
+                            for (let i = 0; i < newLength; i++) {
+                                const srcIndex = Math.floor(i * ratio);
+                                audioData[i] = inputData[srcIndex];
+                            }
+                            
+                            updateDebug('Resampled audio to 16kHz, new length: ' + audioData.length);
+                        }
+                        
+                        // Convert to base64
+                        const base64Audio = btoa(String.fromCharCode(...new Uint8Array(audioData.buffer)));
+                        updateDebug('Base64 audio length: ' + base64Audio.length);
+                        
+                        ws.send(JSON.stringify({
+                            type: 'audio_chunk',
+                            data: base64Audio
+                        }));
+                        
+                        updateDebug('Audio chunk sent');
+                    }
+                };
+                
+                source.connect(processor);
+                processor.connect(audioContext.destination);
+                
+                isRecording = true;
+                
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+                updateStatus('Recording...');
+                updateDebug('Recording started');
+                
+                // Send start message
+                ws.send(JSON.stringify({ type: 'start_recording' }));
+                
+                // Store references for cleanup
+                mediaRecorder = { stream: stream, source: source, processor: processor };
+                
+            } catch (error) {
+                updateDebug('Error accessing microphone: ' + error.message);
+                updateStatus('Microphone access denied');
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                // Stop the audio processing
+                if (mediaRecorder.processor) {
+                    mediaRecorder.processor.disconnect();
+                }
+                if (mediaRecorder.source) {
+                    mediaRecorder.source.disconnect();
+                }
+                
+                // Stop the media stream
+                if (mediaRecorder.stream) {
+                    mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                }
+                
+                isRecording = false;
+                
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+                updateStatus('Processing final audio...');
+                updateDebug('Recording stopped');
+                
+                // Send stop message
+                ws.send(JSON.stringify({ type: 'stop_recording' }));
+            }
+        }
+
+        function sendTestAudio() {
+            // Generate a simple sine wave test signal
+            const sampleRate = 16000;
+            const duration = 1; // 1 second
+            const frequency = 440; // A4 note
+            const numSamples = sampleRate * duration;
+            
+            const audioData = new Float32Array(numSamples);
+            for (let i = 0; i < numSamples; i++) {
+                audioData[i] = Math.sin(2 * Math.PI * frequency * i / sampleRate) * 0.5;
+            }
+            
+            const base64Audio = btoa(String.fromCharCode(...new Uint8Array(audioData.buffer)));
+            updateDebug('Sending test audio, length: ' + audioData.length);
+            
+            ws.send(JSON.stringify({
+                type: 'audio_chunk',
+                data: base64Audio
+            }));
+        }
+
+        // Connect WebSocket on page load
+        window.onload = function() {
+            connectWebSocket();
+        };
+    </script>
+</body>
+</html>
