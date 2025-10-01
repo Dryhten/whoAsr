@@ -35,7 +35,9 @@ decoder_chunk_look_back = (
 SAMPLE_RATE = 16000  # FunASR typically uses 16kHz
 CHANNELS = 1
 DTYPE = np.float32
-chunk_stride = chunk_size[1] * 960  # 600ms, same as original
+chunk_stride = (
+    chunk_size[1] * 960 if isinstance(chunk_size, list) else chunk_size * 960
+)  # 600ms, same as original
 
 # Initialize FastAPI app
 app = FastAPI(title="Real-time Speech Recognition API", version="1.0.0")
@@ -84,8 +86,18 @@ def load_model():
     global model
     if model is None:
         logger.info("Loading FunASR model...")
-        model = AutoModel(model="paraformer-zh-streaming")
-        logger.info("Model loaded successfully")
+        try:
+            model = AutoModel(
+                model="paraformer-zh-streaming",
+                vad_model="fsmn-vad",
+                vad_kwargs={"max_single_segment_time": 30000},
+                punc_model="ct-punc",
+                spk_model="cam++",
+            )
+            logger.info("Model loaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to load model: {e}")
+            raise
 
 
 def decode_audio_chunk(audio_data: str) -> np.ndarray:
@@ -183,6 +195,15 @@ async def process_audio_chunk(client_id: str, audio_chunk: np.ndarray):
         )
 
         try:
+            # Ensure speech_chunk is a numpy array
+            if not isinstance(speech_chunk, np.ndarray):
+                logger.error(f"Speech chunk is not numpy array: {type(speech_chunk)}")
+                return
+
+            debug_logger.debug(
+                f"Client {client_id}: Input shape: {speech_chunk.shape}, dtype: {speech_chunk.dtype}"
+            )
+
             # Process with FunASR
             res = model.generate(
                 input=speech_chunk,

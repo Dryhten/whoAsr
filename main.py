@@ -11,6 +11,7 @@ decoder_chunk_look_back = (
     1  # number of encoder chunks to lookback for decoder cross-attention
 )
 
+# Load model without VAD first to avoid the chunk_size issue
 model = AutoModel(model="paraformer-zh-streaming")
 
 # Audio parameters
