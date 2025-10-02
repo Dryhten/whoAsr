@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
+import { ModelManagementCard } from "@/components/ModelManagementCard";
 
 export function Punctuation() {
   const [inputText, setInputText] = useState("");
@@ -341,6 +342,12 @@ export function Punctuation() {
                 </div>
               </CardContent>
             </Card>
+
+            <ModelManagementCard
+              requiredModel="punctuation"
+              compact={false}
+              showLoadButton={true}
+            />
 
             <Card>
               <CardHeader className="pb-3">

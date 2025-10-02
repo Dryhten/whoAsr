@@ -17,6 +17,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { ModelManagementCard } from "@/components/ModelManagementCard";
 
 export function Asr() {
   const [isConnected, setIsConnected] = useState(false);
@@ -102,6 +103,10 @@ export function Asr() {
   const handleMessage = (message: WebSocketMessage) => {
     if (message.type === "recognition_result") {
       setResult((prev) => prev + message.text);
+    } else if (message.type === "error") {
+      setError(message.message || "WebSocket错误");
+    } else if (message.type === "status") {
+      setStatus(message.message || "状态更新");
     }
   };
 
@@ -236,7 +241,7 @@ export function Asr() {
           </Card>
         </div>
 
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-3 gap-6 items-start">
           {/* Main Content */}
           <div className="col-span-2 space-y-6">
             {/* Error Alert */}
@@ -386,37 +391,46 @@ export function Asr() {
             )}
           </div>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">系统信息</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">
-                    客户端ID
-                  </span>
-                  <Badge variant="outline" className="text-xs">
-                    {clientIdRef.current}
-                  </Badge>
+          {/* Right Sidebar */}
+          <div className="space-y-6">
+            <ModelManagementCard
+              requiredModel="streaming_asr"
+              compact={false}
+              showLoadButton={true}
+            />
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">系统信息</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      客户端ID
+                    </span>
+                    <Badge variant="outline" className="text-xs">
+                      {clientIdRef.current}
+                    </Badge>
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">协议</span>
+                    <Badge variant="secondary" className="text-xs">
+                      WebSocket
+                    </Badge>
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">状态</span>
+                    <Badge variant="outline" className="text-xs">
+                      {isConnected ? "连接中" : "未连接"}
+                    </Badge>
+                  </div>
                 </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">协议</span>
-                  <Badge variant="secondary" className="text-xs">
-                    WebSocket
-                  </Badge>
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">状态</span>
-                  <Badge variant="outline" className="text-xs">
-                    {isConnected ? "连接中" : "未连接"}
-                  </Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>
