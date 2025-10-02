@@ -3,11 +3,8 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-from ..core.model import (
-    add_punctuation,
-    is_punctuation_model_loaded,
-    load_punctuation_model,
-)
+from ..core.model import add_punctuation
+from ..core.models import ModelType
 from ..core.config import logger
 
 # Create router instance
@@ -18,7 +15,6 @@ class PunctuationRequest(BaseModel):
     """Request model for punctuation addition"""
 
     text: str
-    force_load: Optional[bool] = False
 
 
 class PunctuationResponse(BaseModel):
@@ -34,17 +30,7 @@ class PunctuationResponse(BaseModel):
 async def add_punctuation_endpoint(request: PunctuationRequest):
     """Add punctuation to text"""
     try:
-        # Ensure punctuation model is loaded
-        if not is_punctuation_model_loaded():
-            if request.force_load:
-                load_punctuation_model()
-            else:
-                raise HTTPException(
-                    status_code=503,
-                    detail="Punctuation model not loaded. Set force_load=true to load it.",
-                )
-
-        # Add punctuation
+        # Add punctuation - the add_punctuation function will handle model loading
         punctuated_text = add_punctuation(request.text)
 
         return PunctuationResponse(
@@ -61,27 +47,12 @@ async def add_punctuation_endpoint(request: PunctuationRequest):
         )
 
 
-@router.get("/status")
-async def get_punctuation_status():
-    """Get punctuation model status"""
-    return {"model_loaded": is_punctuation_model_loaded(), "model_name": "ct-punc"}
-
-
-@router.post("/load")
-async def load_punctuation_model_endpoint():
-    """Load punctuation model"""
-    try:
-        success = load_punctuation_model()
-        return {
-            "success": success,
-            "message": (
-                "Punctuation model loaded successfully"
-                if success
-                else "Failed to load punctuation model"
-            ),
-        }
-    except Exception as e:
-        logger.error(f"Error loading punctuation model: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to load punctuation model: {str(e)}"
-        )
+@router.get("/info")
+async def get_punctuation_info():
+    """Get punctuation model info"""
+    return {
+        "model_type": ModelType.PUNCTUATION.value,
+        "display_name": "标点符号添加",
+        "description": "基于CT-Punc的中文标点符号自动添加模型",
+        "note": "Use /model/status for current model status and /model/load to load the model"
+    }
