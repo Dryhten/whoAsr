@@ -7,6 +7,7 @@ from fastapi import WebSocket
 from .config import DTYPE, logger, CHUNK_STRIDE, CHUNK_SIZE
 from .audio import decode_audio_chunk, process_audio_chunk, process_final_audio
 from .model import get_model
+from .models import ModelType
 
 
 class ConnectionManager:
@@ -99,7 +100,14 @@ class ConnectionManager:
             try:
                 model = get_model()
                 if not model:
-                    logger.error("Model not loaded")
+                    logger.error("Streaming ASR model not loaded")
+                    await self.send_message(
+                        client_id,
+                        {
+                            "type": "error",
+                            "message": "Streaming ASR model not loaded. Please load the model using POST /model/load with model_type='streaming_asr'",
+                        },
+                    )
                     return
 
                 result_text = process_audio_chunk(
@@ -133,7 +141,14 @@ class ConnectionManager:
         try:
             model = get_model()
             if not model:
-                logger.error("Model not loaded")
+                logger.error("Streaming ASR model not loaded")
+                await self.send_message(
+                    client_id,
+                    {
+                        "type": "error",
+                        "message": "Streaming ASR model not loaded. Please load the model using POST /model/load with model_type='streaming_asr'",
+                    },
+                )
                 return
 
             result_text = process_final_audio(
