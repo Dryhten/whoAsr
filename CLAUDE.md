@@ -113,11 +113,31 @@ whoAsr/
 └── pyproject.toml        # Dependencies and config
 ```
 
+## Frontend Development
+
+The project includes a Preact-based frontend application:
+
+```bash
+cd frontend
+npm install
+npm run dev      # Development server
+npm run build    # Production build
+```
+
+After building, FastAPI serves the static files from `frontend/dist/` at the root path.
+
+### Frontend Stack
+- **Framework**: Preact (lightweight React alternative)
+- **Build Tool**: Vite
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS 4 (planned integration)
+
 ## Development Notes
 
-- The project uses **uv** for dependency management
+- The project uses **uv** for Python dependency management and **npm** for frontend dependencies
 - Two server implementations exist: `api/main.py` (modular) and `api_server.py` (legacy)
 - FunASR models are loaded once at startup and kept in memory
 - WebSocket connections maintain per-client state including audio buffers and model cache
 - Audio format detection is robust - tries float32, int16, and int32 formats
 - Logging is configured to show warnings/errors only, with separate debug logger
+- Frontend build artifacts are served by FastAPI, enabling single-server deployment

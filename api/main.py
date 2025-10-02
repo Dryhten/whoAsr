@@ -1,41 +1,33 @@
 """Main application entry point for speech recognition API"""
 
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from contextlib import asynccontextmanager
 from .core.model import load_model, is_model_loaded, load_punctuation_model
 from .core.config import logger
 from .routers.websocket import websocket_endpoint
 from .routers.punctuation import router as punctuation_router
 
-# Initialize FastAPI app
-app = FastAPI(title="Real-time Speech Recognition API", version="1.0.0")
 
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize the model on startup"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize the model on startup and cleanup on shutdown"""
     try:
         load_model()
         load_punctuation_model()
         logger.info("Application startup completed successfully")
+        yield
     except Exception as e:
         logger.error(f"Failed to initialize application: {e}")
         raise
+    finally:
+        # Cleanup code can be added here if needed
+        logger.info("Application shutdown")
 
 
-@app.get("/")
-async def get():
-    """Serve a simple test page"""
-    try:
-        with open("test_simple.html", "r", encoding="utf-8") as f:
-            content = f.read()
-        return HTMLResponse(content=content)
-    except FileNotFoundError:
-        logger.error("test_simple.html not found")
-        return HTMLResponse(
-            content="<h1>Test page not found</h1><p>Please ensure test_simple.html exists in the root directory.</p>",
-            status_code=404,
-        )
+# Initialize FastAPI app with lifespan
+app = FastAPI(
+    title="Real-time Speech Recognition API", version="1.0.0", lifespan=lifespan
+)
 
 
 @app.get("/health")
