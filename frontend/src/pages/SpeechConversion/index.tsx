@@ -1,8 +1,11 @@
+import { UnderConstruction } from '@/components/UnderConstruction';
+
 export function SpeechConversion() {
   return (
-    <div>
-      <h1>语音转换</h1>
-      <p>语音转换功能页面 - 待实现</p>
-    </div>
+    <UnderConstruction
+      title="语音转换"
+      description="语音特征转换与合成"
+      feature="语音转换"
+    />
   );
 }
