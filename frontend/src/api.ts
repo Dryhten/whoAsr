@@ -63,19 +63,56 @@ export interface PunctuationResponse {
 // 健康检查响应
 export interface HealthCheckResponse {
     status: string;
-    model_loaded: boolean;
+    timestamp: string;
+    services: {
+        [key: string]: {
+            loaded: boolean;
+            display_name: string;
+            description: string;
+            auto_load: boolean;
+            supported_formats: string[];
+            api_endpoints: string[];
+        };
+    };
+    total_loaded: number;
+    system: {
+        memory_total_gb: number;
+        memory_available_gb: number;
+        memory_usage_percent: number;
+        cpu_usage_percent: number;
+    };
+    api_info: {
+        version: string;
+        title: string;
+        docs: string;
+        websocket: string;
+    };
 }
 
-// 标点模型状态响应
-export interface PunctuationStatusResponse {
-    model_loaded: boolean;
-    model_name: string;
-}
-
-// 标点模型加载响应
-export interface PunctuationLoadResponse {
-    success: boolean;
-    message: string;
+// 模型信息响应
+export interface ModelInfoResponse {
+    models: {
+        [key: string]: {
+            loaded: boolean;
+            display_name: string;
+            description: string;
+            model_name?: string;
+            auto_load?: boolean;
+            config?: any;
+        };
+    };
+    total_loaded: number;
+    available_models: {
+        [key: string]: {
+            display_name: string;
+            description: string;
+            model_name: string;
+            auto_load: boolean;
+            dependencies: string[];
+            loaded: boolean;
+            config: any;
+        };
+    };
 }
 
 // WebSocket 连接类
@@ -203,7 +240,7 @@ export class SpeechApi {
     // 添加标点符号
     async addPunctuation(request: PunctuationRequest): Promise<PunctuationResponse> {
         try {
-            const response = await fetch(`${this.baseUrl}/punctuation/add`, {
+            const response = await fetch(`${this.baseUrl}${API_ENDPOINTS.PUNCTUATE}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -222,24 +259,46 @@ export class SpeechApi {
         }
     }
 
-    // 获取标点模型状态
-    async getPunctuationStatus(): Promise<PunctuationStatusResponse> {
+    // 获取模型信息
+    async getModelInfo(): Promise<ModelInfoResponse> {
         try {
-            const response = await fetch(`${this.baseUrl}/punctuation/status`);
+            const response = await fetch(`${this.baseUrl}${API_ENDPOINTS.MODEL_INFO}`);
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
             return await response.json();
         } catch (error) {
-            console.error('获取标点模型状态失败:', error);
+            console.error('获取模型信息失败:', error);
             throw error;
         }
     }
 
-    // 加载标点模型
-    async loadPunctuationModel(): Promise<PunctuationLoadResponse> {
+    // 加载模型
+    async loadModel(modelType: string): Promise<any> {
         try {
-            const response = await fetch(`${this.baseUrl}/punctuation/load`, {
+            const response = await fetch(`${this.baseUrl}${API_ENDPOINTS.MODEL_LOAD}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ model_type: modelType }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('加载模型失败:', error);
+            throw error;
+        }
+    }
+
+    // 卸载模型
+    async unloadModel(modelType: string): Promise<any> {
+        try {
+            const response = await fetch(`${this.baseUrl}${API_ENDPOINTS.MODEL_UNLOAD(modelType)}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -252,7 +311,7 @@ export class SpeechApi {
 
             return await response.json();
         } catch (error) {
-            console.error('加载标点模型失败:', error);
+            console.error('卸载模型失败:', error);
             throw error;
         }
     }
@@ -600,6 +659,65 @@ export function checkAudioSupport(): { supported: boolean; error?: string } {
     return { supported: true };
 }
 
+// ============ Offline Speech Recognition API ============
+
+// Offline Recognition Types
+export interface RecognitionRequest {
+    file_path: string;
+    batch_size_s?: number;
+    batch_size_threshold_s?: number;
+    hotword?: string;
+}
+
+export interface RecognitionResponse {
+    success: boolean;
+    results?: any[];
+    file_name?: string;
+    file_size?: number;
+    message?: string;
+}
+
+// Offline Recognition API class
+export class RecognitionAPI {
+    static async recognizeFile(
+        file: File,
+        batchSizeS: number = 300,
+        batchSizeThresholdS: number = 60,
+        hotword?: string
+    ): Promise<RecognitionResponse> {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('batch_size_s', batchSizeS.toString());
+        formData.append('batch_size_threshold_s', batchSizeThresholdS.toString());
+        if (hotword) {
+            formData.append('hotword', hotword);
+        }
+
+        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.RECOGNIZE}`, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `Recognition failed: ${response.status}`);
+        }
+
+        return response.json();
+    }
+
+    static validateAudioFile(file: File): boolean {
+        const validTypes = [
+            'audio/wav', 'audio/mp3', 'audio/mpeg',
+            'audio/m4a', 'audio/flac', 'audio/ogg'
+        ];
+        const validExtensions = ['.wav', '.mp3', '.m4a', '.flac', '.ogg'];
+
+        return validTypes.includes(file.type) ||
+               validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+    }
+}
+
 // ============ VAD (Voice Activity Detection) API ============
 
 // VAD Types
@@ -610,7 +728,8 @@ export interface VADResponse {
     success: boolean;
     message: string;
     segments?: VADSegmentList[];
-    file_path?: string;
+    file_name?: string;
+    file_size?: number;
 }
 
 export interface VADWebSocketMessage {
@@ -737,29 +856,13 @@ export class VADWebSocket {
 
 // VAD API class
 export class VADAPI {
-    static async uploadFile(file: File): Promise<VADResponse> {
+    static async uploadAndDetect(file: File): Promise<VADResponse> {
         const formData = new FormData();
         formData.append("file", file);
 
-        const response = await fetch(`${API_BASE_URL}/vad/upload_and_detect`, {
+        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.VAD}`, {
             method: "POST",
             body: formData,
-        });
-
-        if (!response.ok) {
-            throw new Error(`Upload failed: ${response.status}`);
-        }
-
-        return response.json();
-    }
-
-    static async detectVoiceActivity(filePath: string): Promise<VADResponse> {
-        const response = await fetch(`${API_BASE_URL}/vad/detect`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ file_path: filePath }),
         });
 
         if (!response.ok) {
@@ -767,6 +870,16 @@ export class VADAPI {
         }
 
         return response.json();
+    }
+
+    // 保留旧方法以确保兼容性
+    static async uploadFile(file: File): Promise<VADResponse> {
+        return this.uploadAndDetect(file);
+    }
+
+    static async detectVoiceActivity(filePath: string): Promise<VADResponse> {
+        // 这个方法现在已弃用，因为我们合并了上传和检测功能
+        throw new Error('detectVoiceActivity method is deprecated. Use uploadAndDetect instead.');
     }
 
     static formatDuration(ms: number): string {
@@ -797,8 +910,6 @@ export interface TimestampResponse {
     success: boolean;
     message: string;
     results?: TimestampSegment[];
-    file_path?: string;
-    text_file_path?: string;
 }
 
 export interface TimestampUploadResponse {
@@ -832,63 +943,38 @@ export class TimestampAPI {
             formData.append("text_content", textContent);
         }
 
-        const response = await fetch(`${API_BASE_URL}/timestamp/upload_and_predict`, {
+        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.TIMESTAMP}`, {
             method: "POST",
             body: formData,
         });
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.detail || `Upload failed: ${response.status}`);
+            throw new Error(errorData.detail || `Timestamp prediction failed: ${response.status}`);
         }
 
         return response.json();
     }
 
+    // 保留旧方法以确保兼容性
     static async uploadFiles(
         audioFile: File,
         textFile?: File,
         textContent?: string
     ): Promise<TimestampUploadResponse> {
-        const formData = new FormData();
-        formData.append("audio_file", audioFile);
-
-        if (textFile) {
-            formData.append("text_file", textFile);
-        }
-
-        if (textContent) {
-            formData.append("text_content", textContent);
-        }
-
-        const response = await fetch(`${API_BASE_URL}/timestamp/upload`, {
-            method: "POST",
-            body: formData,
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.detail || `Upload failed: ${response.status}`);
-        }
-
-        return response.json();
+        // 这个方法现在已弃用，因为我们合并了上传和预测功能
+        const response = await this.uploadAndPredict(audioFile, textFile, textContent);
+        return {
+            success: response.success,
+            message: response.message,
+            audio_file_path: undefined, // 不再返回路径信息
+            text_file_path: undefined,
+        };
     }
 
     static async predictTimestamps(request: TimestampRequest): Promise<TimestampResponse> {
-        const response = await fetch(`${API_BASE_URL}/timestamp/predict`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(request),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.detail || `Prediction failed: ${response.status}`);
-        }
-
-        return response.json();
+        // 这个方法现在已弃用，因为我们合并了上传和预测功能
+        throw new Error('predictTimestamps method is deprecated. Use uploadAndPredict instead.');
     }
 
     static formatDuration(ms: number): string {
