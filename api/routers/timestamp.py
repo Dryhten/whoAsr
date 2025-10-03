@@ -18,42 +18,17 @@ router = APIRouter(prefix="/timestamp", tags=["Timestamp"])
 
 
 
-@router.post("/upload", response_model=UploadResponse)
-async def upload_files(
+
+
+
+
+@router.post("/predict", response_model=ProcessingResponse)
+async def predict_timestamps(
     audio_file: UploadFile = File(...),
     text_file: Optional[UploadFile] = File(None),
     text_content: Optional[str] = Form(None)
 ):
-    """Upload audio and text files for timestamp prediction"""
-    validate_audio_file(audio_file.filename)
-
-    file_id = generate_unique_id()
-    audio_file_path = save_upload_file(audio_file, file_id)
-
-    text_file_path = None
-    if text_file:
-        text_file_path = save_upload_file(text_file, file_id)
-    elif text_content:
-        text_file_path = save_text_file(text_content, file_id)
-
-    logger.info(f"Files uploaded - Audio: {audio_file.filename}, Text: {text_file.filename if text_file else 'Direct input'}")
-
-    return UploadResponse(
-        success=True,
-        message="Files uploaded successfully",
-        file_path=str(audio_file_path)
-    )
-
-
-
-
-@router.post("/upload_and_predict", response_model=ProcessingResponse)
-async def upload_and_predict(
-    audio_file: UploadFile = File(...),
-    text_file: Optional[UploadFile] = File(None),
-    text_content: Optional[str] = Form(None)
-):
-    """Upload files and predict timestamps in one step"""
+    """Upload audio and text files to predict timestamps"""
     validate_audio_file(audio_file.filename)
     if not text_file and not text_content:
         raise HTTPException(status_code=400, detail="Either text_file or text_content is required")

@@ -47,12 +47,3 @@ async def add_punctuation_endpoint(request: PunctuationRequest):
         )
 
 
-@router.get("/info")
-async def get_punctuation_info():
-    """Get punctuation model info"""
-    return {
-        "model_type": ModelType.PUNCTUATION.value,
-        "display_name": "标点符号添加",
-        "description": "基于CT-Punc的中文标点符号自动添加模型",
-        "note": "Use /model/status for current model status and /model/load to load the model"
-    }

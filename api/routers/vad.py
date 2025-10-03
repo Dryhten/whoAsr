@@ -13,10 +13,7 @@ from pydantic import BaseModel
 from ..core.model import get_vad_model, is_vad_model_loaded
 from ..core.models import ModelType, get_model_config
 from ..core.schemas import ProcessingResponse
-from ..core.file_utils import (
-    generate_unique_id, validate_audio_file, save_upload_file,
-    cleanup_temp_files, validate_file_exists
-)
+from ..core.file_utils import cleanup_temp_files
 from ..core.model_utils import process_model_request
 from ..core.config import logger
 
@@ -30,7 +27,8 @@ class VADResponse(BaseModel):
     success: bool
     message: str
     segments: Optional[List[List[int]]] = None
-    file_path: Optional[str] = None
+    file_name: Optional[str] = None
+    file_size: Optional[int] = None
 
 
 class VADStreamSegment(BaseModel):
@@ -57,89 +55,14 @@ def extract_vad_results(model_output: List) -> List[List[int]]:
     return results
 
 
-@router.post("/upload", response_model=VADResponse)
-async def upload_audio_file(file: UploadFile = File(...)):
-    """Upload audio file for VAD processing"""
-    validate_audio_file(file.filename)
-    file_path = save_upload_file(file, generate_unique_id())
-    logger.info(f"Audio file uploaded: {file.filename} -> {file_path}")
 
-    return VADResponse(
-        success=True,
-        message="File uploaded successfully",
-        file_path=str(file_path)
-    )
+
 
 
 @router.post("/detect", response_model=VADResponse)
-async def detect_voice_activity(request: dict):
-    """Detect voice activity in uploaded audio file (offline VAD)"""
-    file_path = request.get("file_path")
-    if not file_path:
-        raise HTTPException(status_code=400, detail="file_path is required")
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
-
-    # Check if VAD model is loaded
-    if not is_vad_model_loaded():
-        raise HTTPException(
-            status_code=503,
-            detail="VAD model not loaded. Please load the VAD model using POST /model/load with model_type='vad'",
-        )
-
-    try:
-        model = get_vad_model()
-        if model is None:
-            raise HTTPException(status_code=503, detail="VAD model not available")
-
-        # Process audio file
-        logger.info(f"Processing VAD for file: {file_path}")
-        model_output = model.generate(input=file_path)
-
-        # Extract segments from FunASR VAD output format
-        segments = []
-        if model_output and len(model_output) > 0:
-            # FunASR VAD returns dict with 'value' key containing the actual segments
-            first_result = model_output[0]
-            if isinstance(first_result, dict) and "value" in first_result:
-                segments = first_result["value"]
-            elif isinstance(first_result, list):
-                segments = first_result
-            else:
-                logger.warning(f"Unexpected VAD output format: {type(first_result)}")
-
-        logger.info(f"Raw VAD output type: {type(model_output)}")
-        logger.info(f"Raw VAD output: {model_output}")
-        logger.info(f"Extracted segments type: {type(segments)}")
-        logger.info(f"Extracted segments: {segments}")
-
-        # Clean up temporary file
-        try:
-            os.remove(file_path)
-        except:
-            pass
-
-        logger.info(f"VAD detection completed, found {len(segments)} segments")
-
-        return VADResponse(
-            success=True,
-            message="VAD detection completed successfully",
-            segments=segments,
-        )
-
-    except Exception as e:
-        logger.error(f"Error in VAD detection: {e}")
-        # Clean up temporary file on error
-        try:
-            os.remove(file_path)
-        except:
-            pass
-        raise HTTPException(status_code=500, detail=f"VAD detection failed: {str(e)}")
-
-
-@router.post("/upload_and_detect", response_model=VADResponse)
-async def upload_and_detect(file: UploadFile = File(...)):
-    """Upload file and detect voice activity in one step"""
+async def detect_voice_activity(file: UploadFile = File(...)):
+    """Upload audio file and detect voice activity"""
+    # Check file type
     if not file.filename.lower().endswith((".wav", ".mp3", ".m4a", ".flac", ".ogg")):
         raise HTTPException(
             status_code=400,
@@ -153,16 +76,17 @@ async def upload_and_detect(file: UploadFile = File(...)):
             detail="VAD model not loaded. Please load the VAD model using POST /model/load with model_type='vad'",
         )
 
+    temp_file_path = None
     try:
         # Generate unique filename
         file_id = str(uuid.uuid4())
         file_extension = os.path.splitext(file.filename)[1]
         temp_filename = f"{file_id}{file_extension}"
-        file_path = os.path.join(TEMP_DIR, temp_filename)
+        temp_file_path = os.path.join(TEMP_DIR, temp_filename)
 
         # Save uploaded file
-        with open(file_path, "wb") as buffer:
-            content = await file.read()
+        content = await file.read()
+        with open(temp_file_path, "wb") as buffer:
             buffer.write(content)
 
         # Process VAD
@@ -171,7 +95,7 @@ async def upload_and_detect(file: UploadFile = File(...)):
             raise HTTPException(status_code=503, detail="VAD model not available")
 
         logger.info(f"Processing VAD for uploaded file: {file.filename}")
-        model_output = model.generate(input=file_path)
+        model_output = model.generate(input=temp_file_path)
 
         # Extract segments from FunASR VAD output format
         segments = []
@@ -199,28 +123,31 @@ async def upload_and_detect(file: UploadFile = File(...)):
             segments = all_segments
             logger.info(f"VAD detected {len(segments)} segments")
 
-        # Clean up temporary file
-        try:
-            os.remove(file_path)
-        except:
-            pass
-
         logger.info(f"VAD detection completed, found {len(segments)} segments")
 
         return VADResponse(
             success=True,
             message="VAD detection completed successfully",
             segments=segments,
+            file_name=file.filename,
+            file_size=len(content),
         )
 
     except Exception as e:
-        logger.error(f"Error in upload and detect: {e}")
+        logger.error(f"Error in VAD detection: {e}")
         raise HTTPException(status_code=500, detail=f"VAD processing failed: {str(e)}")
+
+    finally:
+        # Clean up temporary file
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.remove(temp_file_path)
+            except Exception:
+                pass
 
 
 # WebSocket for real-time VAD
 from fastapi import WebSocket, WebSocketDisconnect
-import asyncio
 import base64
 
 
