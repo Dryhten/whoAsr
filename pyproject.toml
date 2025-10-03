@@ -7,21 +7,21 @@ requires-python = ">=3.13"
 dependencies = [
     "funasr==1.2.7",
     "modelscope==1.30.0",
-    "torch",
-    "torchaudio>=2.8.0",
-    "torchvision",
+    "torch==2.8.0+cpu",
+    "torchaudio==2.8.0+cpu",
+    "torchvision==0.23.0+cpu",
     "pyaudio",
     "numpy",
     "fastapi",
     "uvicorn[standard]",
     "websockets",
     "psutil",
+    "python-multipart",
 ]
 
 [[tool.uv.index]]
 name = "pytorch"
 url = "https://download.pytorch.org/whl/cpu"
-default = true
 
 [[tool.uv.index]]
 name = "tsinghua"

@@ -1,202 +1,127 @@
-# Real-time Speech Recognition API
+# whoAsr - 实时语音识别 API
 
-A FastAPI-based WebSocket API for real-time speech recognition using FunASR's streaming ASR model.
+基于 FastAPI 和 FunASR 的实时语音识别服务，支持 WebSocket 流式识别和离线文件识别。
 
-## Features
+## 🚀 快速开始
 
-- Real-time speech recognition via WebSocket
-- Web-based interface for testing
-- Python client example
-- Support for multiple concurrent connections
-- Streaming ASR with FunASR paraformer-zh-streaming model
-- Automatic audio resampling to 16kHz
-- Base64 audio encoding for WebSocket transmission
+### 本地开发
 
-## Installation
-
-1. Clone the repository:
+1. **克隆项目**
 ```bash
 git clone <repository-url>
 cd whoAsr
 ```
 
-2. Install dependencies using uv:
+2. **安装依赖**
 ```bash
+# 安装 Python 依赖
 uv sync
+
+# 安装前端依赖
+cd frontend
+npm install
+cd ..
 ```
 
-## Usage
-
-### Starting the Server
-
-Run the FastAPI server:
+3. **启动开发服务**
 ```bash
-uv run python api_server.py
+# 启动后端服务 (终端 1)
+uv run python -m api.main
+
+# 启动前端开发服务 (终端 2)
+cd frontend
+npm run dev
 ```
 
-The server will start on `http://localhost:8000`
+4. **访问应用**
+- 前端开发界面: http://localhost:5173
+- 后端 API 文档: http://localhost:8000/docs
+- 健康检查: http://localhost:8000/health
 
-### Web Interface
+### Docker 部署
 
-Open your browser and navigate to `http://localhost:8000` to access the web interface. Click "Start Recording" to begin real-time speech recognition.
+1. **构建并启动**
+```bash
+docker compose up -d --build
+```
 
-### Python Client
+2. **访问应用**
+- 应用地址: http://localhost:8000
+- API 文档: http://localhost:8000/docs
 
-Use the provided Python client example:
+## 📖 使用指南
+
+### 实时语音识别
+
+1. 在 Web 界面中点击"开始录音"
+2. 对着麦克风说话
+3. 实时查看识别结果
+4. 点击"停止录音"结束会话
+
+### 离线文件识别
+
+1. 上传音频文件 (支持 wav, mp3, flac 等格式)
+2. 点击"开始识别"
+3. 查看识别结果
+
+### 模型管理
+
+- **查看模型状态**: 在模型管理卡片中查看已加载的模型
+- **加载模型**: 点击相应模型的"加载"按钮
+- **卸载模型**: 点击已加载模型的"卸载"按钮释放内存
+
+## 🔧 配置
+
+主要配置项通过环境变量控制：
 
 ```bash
-uv run python client_example.py
+# 服务器配置
+HOST=0.0.0.0
+PORT=8000
+ENVIRONMENT=production
+
+# 模型配置
+AUTO_LOAD_MODELS=false
+PRELOAD_MODELS=streaming_asr,punctuation
+
+# 日志级别
+LOG_LEVEL=INFO
 ```
 
-This will connect to the server and start recording from your microphone for real-time transcription.
-
-## API Endpoints
-
-### WebSocket Endpoint
-
-- **URL**: `ws://localhost:8000/ws/{client_id}`
-- **Method**: WebSocket connection
-- **Description**: Real-time speech recognition endpoint
-
-#### Message Types
-
-**Client to Server:**
-
-1. **Start Recording**:
-```json
-{
-  "type": "start_recording"
-}
-```
-
-2. **Audio Chunk**:
-```json
-{
-  "type": "audio_chunk",
-  "data": "base64_encoded_audio_data"
-}
-```
-
-3. **Stop Recording**:
-```json
-{
-  "type": "stop_recording"
-}
-```
-
-**Server to Client:**
-
-1. **Recognition Result**:
-```json
-{
-  "type": "recognition_result",
-  "text": "recognized text",
-  "is_final": false
-}
-```
-
-2. **Status Update**:
-```json
-{
-  "type": "status",
-  "message": "Recording started"
-}
-```
-
-3. **Error**:
-```json
-{
-  "type": "error",
-  "message": "Error description"
-}
-```
-
-### HTTP Endpoints
-
-- **GET `/`**: Web interface for testing
-- **GET `/health`**: Health check endpoint
-- **GET `/docs`**: FastAPI auto-generated documentation
-
-## Audio Format Requirements
-
-- **Sample Rate**: 16kHz (automatically resampled if different)
-- **Channels**: 1 (mono)
-- **Format**: 32-bit float
-- **Encoding**: Base64 encoded binary data
-
-## Configuration
-
-The server uses the following FunASR configuration:
-
-```python
-chunk_size = [0, 10, 5]  # 600ms chunks
-encoder_chunk_look_back = 4
-decoder_chunk_look_back = 1
-SAMPLE_RATE = 16000
-```
-
-## Implementation Details
-
-### Server Architecture
-
-1. **Connection Manager**: Manages WebSocket connections and client states
-2. **Audio Processing**: Handles base64 decoding and audio buffering
-3. **FunASR Integration**: Processes audio chunks with streaming ASR
-4. **Real-time Response**: Sends recognition results back to clients
-
-### Client Implementation
-
-The web interface uses:
-- MediaRecorder API for audio capture
-- WebSocket for real-time communication
-- Web Audio API for audio resampling
-- Base64 encoding for audio transmission
-
-### Error Handling
-
-- Connection errors are logged and reported to clients
-- Audio decoding errors are handled gracefully
-- Model loading errors are reported on startup
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Microphone Access Denied**: Ensure browser has microphone permissions
-2. **Connection Failed**: Check if server is running on port 8000
-3. **Audio Decoding Errors**: May occur with incompatible audio formats
-4. **Model Loading Issues**: Check internet connection for model download
-
-### Logs
-
-Server logs include:
-- Connection/disconnection events
-- Recognition results
-- Error messages
-- Model loading status
-
-## Development
-
-### Project Structure
+## 📁 项目结构
 
 ```
 whoAsr/
-├── api_server.py          # FastAPI WebSocket server
-├── client_example.py      # Python client example
-├── main.py               # Original microphone implementation
-├── pyproject.toml        # Project dependencies
-└── README.md             # This file
+├── api/                     # FastAPI 应用
+│   ├── main.py             # 应用入口点
+│   ├── core/               # 核心模块
+│   │   ├── model.py        # 模型管理
+│   │   ├── config.py       # 配置常量
+│   │   └── connection.py   # 连接管理
+│   └── routers/            # 路由模块
+├── frontend/               # 前端应用
+│   ├── src/                # 源代码
+│   ├── dist/               # 构建产物
+│   └── package.json        # 前端依赖
+├── docker-compose.yml      # Docker 编排配置
+├── Dockerfile             # Docker 镜像配置
+├── pyproject.toml         # Python 项目配置
+└── README.md              # 项目文档
 ```
 
-### Dependencies
+## 🔌 主要 API
 
-- `funasr`: Speech recognition model
-- `fastapi`: Web framework
-- `uvicorn`: ASGI server
-- `websockets`: WebSocket support
-- `numpy`: Audio processing
-- `pyaudio`: Microphone access (for client)
+### WebSocket 端点
+- `ws://localhost:8000/ws/{client_id}` - 实时语音识别
+- `ws://localhost:8000/vad/ws/{client_id}` - 语音活动检测
 
-## License
-
-[Add your license information here]
+### HTTP 端点
+- `GET /` - Web 应用界面
+- `GET /health` - 健康检查
+- `GET /docs` - API 文档
+- `POST /recognize` - 离线文件识别
+- `POST /punctuate` - 文本标点恢复
+- `POST /vad` - 语音活动检测
+- `GET|POST /model/info` - 模型信息查询
+- `POST /model/load` - 加载指定模型
+- `DELETE /model/unload/{model_type}` - 卸载模型
