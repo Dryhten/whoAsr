@@ -9,28 +9,19 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localho
 // API 端点常量
 export const API_ENDPOINTS = {
   // 模型管理
-  MODEL_STATUS: '/model/status',
+  MODEL_INFO: '/model/info',
   MODEL_LOAD: '/model/load',
   MODEL_UNLOAD: (modelType: string) => `/model/unload/${modelType}`,
+  MODEL_CONFIG: (modelType: string) => `/model/config/${modelType}`,
 
   // 健康检查
   HEALTH: '/health',
 
-  // 标点符号
-  PUNCTUATION_ADD: '/punctuation/add',
-
-  // 离线识别
-  OFFLINE_UPLOAD: '/offline/upload',
-  OFFLINE_RECOGNIZE: '/offline/recognize',
-
-  // VAD
-  VAD_UPLOAD_AND_DETECT: '/vad/upload_and_detect',
-  VAD_DETECT: '/vad/detect',
-
-  // 时间戳
-  TIMESTAMP_UPLOAD: '/timestamp/upload',
-  TIMESTAMP_PREDICT: '/timestamp/predict',
-  TIMESTAMP_UPLOAD_AND_PREDICT: '/timestamp/upload_and_predict',
+  // 简化的功能接口
+  RECOGNIZE: '/recognize',        // 离线语音识别
+  PUNCTUATE: '/punctuate',        // 标点符号添加
+  VAD: '/vad',                   // 语音活动检测
+  TIMESTAMP: '/timestamp',       // 时间戳预测
 } as const;
 
 // 通用API请求配置
