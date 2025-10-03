@@ -9,6 +9,8 @@ model_instances = {
     ModelType.STREAMING_ASR: None,
     ModelType.OFFLINE_ASR: None,
     ModelType.PUNCTUATION: None,
+    ModelType.VAD: None,
+    ModelType.TIMESTAMP: None,
 }
 
 
@@ -41,6 +43,12 @@ def load_model_by_type(model_type: ModelType) -> bool:
             )
 
         elif model_type == ModelType.PUNCTUATION:
+            model_instances[model_type] = AutoModel(model=config.model_name)
+
+        elif model_type == ModelType.VAD:
+            model_instances[model_type] = AutoModel(model=config.model_name)
+
+        elif model_type == ModelType.TIMESTAMP:
             model_instances[model_type] = AutoModel(model=config.model_name)
 
         else:
@@ -92,6 +100,7 @@ def get_loaded_models_status() -> dict:
 # Legacy functions for backward compatibility
 def load_model(model_name: str = "paraformer-zh-streaming"):
     """Legacy function - use load_model_by_type instead"""
+    _ = model_name  # Unused parameter, kept for backward compatibility
     return load_model_by_type(ModelType.STREAMING_ASR)
 
 
@@ -120,6 +129,11 @@ def get_offline_model():
     return get_model_by_type(ModelType.OFFLINE_ASR)
 
 
+def get_vad_model():
+    """Legacy function - use get_model_by_type instead"""
+    return get_model_by_type(ModelType.VAD)
+
+
 def is_model_loaded():
     """Legacy function - use is_model_loaded_by_type instead"""
     return is_model_loaded_by_type(ModelType.STREAMING_ASR)
@@ -133,6 +147,26 @@ def is_punctuation_model_loaded():
 def is_offline_model_loaded():
     """Legacy function - use is_model_loaded_by_type instead"""
     return is_model_loaded_by_type(ModelType.OFFLINE_ASR)
+
+
+def is_vad_model_loaded():
+    """Legacy function - use is_model_loaded_by_type instead"""
+    return is_model_loaded_by_type(ModelType.VAD)
+
+
+def is_timestamp_model_loaded():
+    """Legacy function - use is_model_loaded_by_type instead"""
+    return is_model_loaded_by_type(ModelType.TIMESTAMP)
+
+
+def get_timestamp_model():
+    """Legacy function - use get_model_by_type instead"""
+    return get_model_by_type(ModelType.TIMESTAMP)
+
+
+def load_timestamp_model():
+    """Legacy function - use load_model_by_type instead"""
+    return load_model_by_type(ModelType.TIMESTAMP)
 
 
 def add_punctuation(text: str) -> str:

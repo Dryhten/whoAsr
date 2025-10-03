@@ -10,6 +10,8 @@ class ModelType(str, Enum):
     STREAMING_ASR = "streaming_asr"
     OFFLINE_ASR = "offline_asr"
     PUNCTUATION = "punctuation"
+    VAD = "vad"
+    TIMESTAMP = "timestamp"
 
 
 class ModelConfig:
@@ -69,6 +71,25 @@ MODEL_CONFIGS = {
         model_name="ct-punc",
         display_name="标点符号添加",
         description="基于CT-Punc的中文标点符号自动添加模型",
+        auto_load=False,
+        config={},
+    ),
+    ModelType.VAD: ModelConfig(
+        model_type=ModelType.VAD,
+        model_name="fsmn-vad",
+        display_name="语音端点检测",
+        description="基于FSMN-VAD的语音端点检测模型，支持离线和实时检测",
+        auto_load=False,
+        config={
+            "chunk_size": 200,  # ms
+            "sample_rate": 16000,
+        },
+    ),
+    ModelType.TIMESTAMP: ModelConfig(
+        model_type=ModelType.TIMESTAMP,
+        model_name="fa-zh",
+        display_name="时间戳预测",
+        description="基于FunASR的时间戳预测模型，为语音文本同步提供精准时间定位",
         auto_load=False,
         config={},
     ),
