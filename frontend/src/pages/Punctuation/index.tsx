@@ -26,7 +26,7 @@ export function Punctuation() {
     setError("");
 
     try {
-      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PUNCTUATION_ADD}`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.PUNCTUATE}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

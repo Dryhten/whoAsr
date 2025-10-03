@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ModelManagementCard } from "@/components/ModelManagementCard";
-import { API_BASE_URL, API_ENDPOINTS } from "@/lib/config";
+import { RecognitionAPI } from "@/api";
 import { ErrorIcon, SpinnerIcon, CheckIcon, TrashIcon, InfoIcon, CopyIcon, UploadIcon, PencilIcon } from "@/components/icons";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
@@ -36,42 +36,16 @@ export function AsrOffline() {
     setError("");
 
     try {
-      // Upload file
-      const formData = new FormData();
-      formData.append("file", selectedFile);
+      const response = await RecognitionAPI.recognizeFile(
+        selectedFile,
+        300, // batchSizeS
+        60, // batchSizeThresholdS
+        hotword.trim() || undefined
+      );
 
-      const uploadResponse = await fetch(`${API_BASE_URL}${API_ENDPOINTS.OFFLINE_UPLOAD}`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error(`文件上传失败: ${uploadResponse.status}`);
-      }
-
-      const uploadData = await uploadResponse.json();
-
-      // Perform recognition
-      const recognitionFormData = new FormData();
-      recognitionFormData.append("file_path", uploadData.file_path);
-      if (hotword.trim()) {
-        recognitionFormData.append("hotword", hotword.trim());
-      }
-
-      const recognitionResponse = await fetch(`${API_BASE_URL}${API_ENDPOINTS.OFFLINE_RECOGNIZE}`, {
-        method: "POST",
-        body: recognitionFormData,
-      });
-
-      if (!recognitionResponse.ok) {
-        throw new Error(`语音识别失败: ${recognitionResponse.status}`);
-      }
-
-      const recognitionData = await recognitionResponse.json();
-
-      if (recognitionData.success && recognitionData.results) {
+      if (response.success && response.results) {
         // Format results for display
-        const formattedResults = recognitionData.results.map((item: any) => {
+        const formattedResults = response.results.map((item: any) => {
           if (typeof item === 'string') {
             return item;
           } else if (item.text) {
@@ -82,7 +56,7 @@ export function AsrOffline() {
 
         setResult(formattedResults);
       } else {
-        throw new Error(recognitionData.message || "识别失败");
+        throw new Error(response.message || "识别失败");
       }
 
     } catch (err) {
