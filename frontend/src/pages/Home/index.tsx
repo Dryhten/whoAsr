@@ -1,33 +1,45 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { MicrophoneIcon, UploadIcon, CheckIcon, InfoIcon } from "@/components/icons";
+import {
+  MicrophoneIcon,
+  UploadIcon,
+  CheckIcon,
+  InfoIcon,
+} from "@/components/icons";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export function Home() {
   useDocumentTitle("首页");
   const features = [
     {
-      icon: <MicrophoneIcon className="h-8 w-8 text-blue-600" />,
+      icon: <MicrophoneIcon className="h-8 w-8 text-primary" />,
       title: "实时语音识别",
-      description: "基于FunASR的流式语音识别，支持WebSocket实时传输，毫秒级响应"
+      description:
+        "基于FunASR的流式语音识别，支持WebSocket实时传输，毫秒级响应",
     },
     {
-      icon: <UploadIcon className="h-8 w-8 text-green-600" />,
+      icon: <UploadIcon className="h-8 w-8 text-primary" />,
       title: "离线文件处理",
-      description: "支持多种音频格式批量处理，保护隐私的同时提供高精度识别"
+      description: "支持多种音频格式批量处理，保护隐私的同时提供高精度识别",
     },
     {
-      icon: <CheckIcon className="h-8 w-8 text-purple-600" />,
+      icon: <CheckIcon className="h-8 w-8 text-primary" />,
       title: "智能标点添加",
-      description: "AI驱动的自动标点符号添加，提升文本可读性和专业性"
+      description: "AI驱动的自动标点符号添加，提升文本可读性和专业性",
     },
     {
-      icon: <InfoIcon className="h-8 w-8 text-orange-600" />,
+      icon: <InfoIcon className="h-8 w-8 text-primary" />,
       title: "时间戳预测",
-      description: "精准的语音文本时间对齐，适用于字幕制作和内容分析"
-    }
+      description: "精准的语音文本时间对齐，适用于字幕制作和内容分析",
+    },
   ];
 
   const techStack = [
@@ -36,15 +48,31 @@ export function Home() {
     { name: "WebSocket", description: "实时双向通信协议" },
     { name: "Preact", description: "轻量级前端框架" },
     { name: "TypeScript", description: "类型安全的JavaScript" },
-    { name: "Tailwind CSS", description: "实用优先的CSS框架" }
+    { name: "Tailwind CSS", description: "实用优先的CSS框架" },
   ];
 
   const quickLinks = [
-    { title: "实时语音识别", description: "体验流式语音识别功能", href: "/asr" },
-    { title: "离线识别", description: "上传音频文件进行识别", href: "/asr-offline" },
-    { title: "标点添加", description: "为文本添加智能标点", href: "/punctuation" },
-    { title: "时间戳预测", description: "语音文本时间对齐", href: "/timestamp" },
-    { title: "语音端点检测", description: "检测语音活动片段", href: "/vad" }
+    {
+      title: "实时语音识别",
+      description: "体验流式语音识别功能",
+      href: "/asr",
+    },
+    {
+      title: "离线识别",
+      description: "上传音频文件进行识别",
+      href: "/asr-offline",
+    },
+    {
+      title: "标点添加",
+      description: "为文本添加智能标点",
+      href: "/punctuation",
+    },
+    {
+      title: "时间戳预测",
+      description: "语音文本时间对齐",
+      href: "/timestamp",
+    },
+    { title: "语音端点检测", description: "检测语音活动片段", href: "/vad" },
   ];
 
   return (
@@ -54,8 +82,8 @@ export function Home() {
         <div className="container mx-auto px-4">
           <div className="text-center max-w-4xl mx-auto">
             <div className="flex justify-center mb-8">
-              <div className="p-4 bg-blue-100 dark:bg-blue-900 rounded-2xl">
-                <MicrophoneIcon className="h-16 w-16 text-blue-600 dark:text-blue-400" />
+              <div className="p-4 bg-primary/10 rounded-2xl">
+                <MicrophoneIcon className="h-16 w-16 text-primary" />
               </div>
             </div>
 
@@ -75,7 +103,12 @@ export function Home() {
               <Button size="lg" className="text-lg px-8 py-3" asChild>
                 <a href="/asr">开始体验</a>
               </Button>
-              <Button variant="outline" size="lg" className="text-lg px-8 py-3" asChild>
+              <Button
+                variant="outline"
+                size="lg"
+                className="text-lg px-8 py-3"
+                asChild
+              >
                 <a href="/asr-offline">离线处理</a>
               </Button>
             </div>
@@ -105,11 +138,12 @@ export function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {features.map((feature, index) => (
-              <Card key={index} className="text-center hover:shadow-lg transition-shadow">
+              <Card
+                key={index}
+                className="text-center hover:shadow-lg transition-shadow"
+              >
                 <CardHeader>
-                  <div className="flex justify-center mb-4">
-                    {feature.icon}
-                  </div>
+                  <div className="flex justify-center mb-4">{feature.icon}</div>
                   <CardTitle className="text-xl">{feature.title}</CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -137,12 +171,17 @@ export function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
             {quickLinks.map((link, index) => (
-              <Card key={index} className="hover:shadow-lg transition-all hover:scale-105">
+              <Card
+                key={index}
+                className="hover:shadow-lg transition-all hover:scale-105"
+              >
                 <CardHeader className="text-center">
                   <CardTitle className="text-lg">{link.title}</CardTitle>
                 </CardHeader>
                 <CardContent className="text-center">
-                  <CardDescription className="mb-4">{link.description}</CardDescription>
+                  <CardDescription className="mb-4">
+                    {link.description}
+                  </CardDescription>
                   <Button variant="outline" size="sm" asChild>
                     <a href={link.href}>立即使用</a>
                   </Button>
@@ -167,13 +206,18 @@ export function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-4xl mx-auto">
             {techStack.map((tech, index) => (
-              <div key={index} className="flex items-center space-x-4 p-4 bg-background rounded-lg border">
+              <div
+                key={index}
+                className="flex items-center space-x-4 p-4 bg-background rounded-lg border"
+              >
                 <div className="flex-shrink-0">
                   <div className="w-3 h-3 bg-primary rounded-full"></div>
                 </div>
                 <div>
                   <h3 className="font-semibold text-foreground">{tech.name}</h3>
-                  <p className="text-sm text-muted-foreground">{tech.description}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {tech.description}
+                  </p>
                 </div>
               </div>
             ))}
@@ -197,7 +241,12 @@ export function Home() {
                 <Button size="lg" className="text-lg px-8 py-3" asChild>
                   <a href="/asr">开始实时识别</a>
                 </Button>
-                <Button variant="outline" size="lg" className="text-lg px-8 py-3" asChild>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="text-lg px-8 py-3"
+                  asChild
+                >
                   <a href="/asr-offline">上传文件处理</a>
                 </Button>
               </div>

@@ -2,12 +2,9 @@ import { BaseIcon, type IconProps } from "./index";
 
 export function UploadIcon(props: IconProps) {
   return (
-    <BaseIcon
-      fill="none"
-      viewBox="0 0 24 24"
-      {...props}
-    >
+    <BaseIcon fill="none" viewBox="0 0 24 24" {...props}>
       <path
+        stroke="currentColor"
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth={2}
