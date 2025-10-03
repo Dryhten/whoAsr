@@ -1,5 +1,11 @@
 import { useState, useEffect } from "preact/hooks";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -16,7 +22,7 @@ interface ModelStatus {
 interface ModelStatusData {
   models: Record<string, ModelStatus>;
   total_loaded: number;
-  available_types: Record<string, string>;
+  available_models: Record<string, any>;
 }
 
 interface ModelManagementCardProps {
@@ -54,9 +60,11 @@ export function ModelManagementCard({
 
   const fetchModelStatus = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.MODEL_STATUS}`);
+      const response = await fetch(
+        `${API_BASE_URL}${API_ENDPOINTS.MODEL_INFO}`
+      );
       if (!response.ok) {
-        throw new Error(`Failed to fetch model status: ${response.status}`);
+        throw new Error(`Failed to fetch model info: ${response.status}`);
       }
       const data = await response.json();
       setModelStatus(data);
@@ -71,13 +79,16 @@ export function ModelManagementCard({
     setError("");
 
     try {
-      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.MODEL_LOAD}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ model_type: modelType }),
-      });
+      const response = await fetch(
+        `${API_BASE_URL}${API_ENDPOINTS.MODEL_LOAD}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ model_type: modelType }),
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`加载模型失败: ${response.status}`);
@@ -105,9 +116,12 @@ export function ModelManagementCard({
     setError("");
 
     try {
-      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.MODEL_UNLOAD(modelType)}`, {
-        method: "POST",
-      });
+      const response = await fetch(
+        `${API_BASE_URL}${API_ENDPOINTS.MODEL_UNLOAD(modelType)}`,
+        {
+          method: "POST",
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`卸载模型失败: ${response.status}`);
@@ -146,11 +160,14 @@ export function ModelManagementCard({
   }
 
   if (!modelStatus) {
-    return <div className="text-center text-muted-foreground">加载模型状态中...</div>;
+    return (
+      <div className="text-center text-muted-foreground">加载模型状态中...</div>
+    );
   }
 
   const requiredModelStatus = modelStatus.models[requiredModel];
-  const requiredModelName = modelStatus.available_types[requiredModel] || requiredModel;
+  const requiredModelName =
+    modelStatus.available_models[requiredModel]?.display_name || requiredModel;
 
   if (compact) {
     return (
@@ -158,38 +175,41 @@ export function ModelManagementCard({
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">{title || "模型状态"}</CardTitle>
-            <Badge variant={requiredModelStatus?.loaded ? "default" : "secondary"}>
+            <Badge
+              variant={requiredModelStatus?.loaded ? "default" : "secondary"}
+            >
               {requiredModelStatus?.loaded ? "已加载" : "未加载"}
             </Badge>
           </div>
-          {description && (
-            <CardDescription>{description}</CardDescription>
-          )}
+          {description && <CardDescription>{description}</CardDescription>}
         </CardHeader>
         <CardContent className="pt-0">
           <div className="space-y-3">
             <div className="flex items-center justify-between text-sm">
               <span>总模型状态</span>
               <Badge variant="outline">
-                {modelStatus.total_loaded} / {Object.keys(modelStatus.models).length}
+                {modelStatus.total_loaded} /{" "}
+                {Object.keys(modelStatus.models).length}
               </Badge>
             </div>
 
-            {requiredModelStatus && !requiredModelStatus.loaded && showLoadButton && (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  需要 {requiredModelName} 模型
-                </p>
-                <Button
-                  size="sm"
-                  onClick={() => loadModel(requiredModel)}
-                  disabled={isLoading}
-                  className="w-full"
-                >
-                  {isLoading ? "加载中..." : `加载 ${requiredModelName}`}
-                </Button>
-              </div>
-            )}
+            {requiredModelStatus &&
+              !requiredModelStatus.loaded &&
+              showLoadButton && (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    需要 {requiredModelName} 模型
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={() => loadModel(requiredModel)}
+                    disabled={isLoading}
+                    className="w-full"
+                  >
+                    {isLoading ? "加载中..." : `加载 ${requiredModelName}`}
+                  </Button>
+                </div>
+              )}
 
             {extraActions && (
               <>
@@ -210,13 +230,13 @@ export function ModelManagementCard({
           <CardTitle className="text-base">
             {title || requiredModelName || "模型管理"}
           </CardTitle>
-          <Badge variant={requiredModelStatus?.loaded ? "default" : "secondary"}>
+          <Badge
+            variant={requiredModelStatus?.loaded ? "default" : "secondary"}
+          >
             {requiredModelStatus?.loaded ? "已加载" : "未加载"}
           </Badge>
         </div>
-        {description && (
-          <CardDescription>{description}</CardDescription>
-        )}
+        {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>
       <CardContent className="pt-0">
         <div className="space-y-4">
@@ -224,7 +244,11 @@ export function ModelManagementCard({
           <div className="p-3 bg-muted rounded-lg">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium">当前功能所需模型</span>
-              <Badge variant={requiredModelStatus?.loaded ? "default" : "destructive"}>
+              <Badge
+                variant={
+                  requiredModelStatus?.loaded ? "default" : "destructive"
+                }
+              >
                 {requiredModelStatus?.loaded ? "已就绪" : "需要加载"}
               </Badge>
             </div>
@@ -261,7 +285,8 @@ export function ModelManagementCard({
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-medium">所有模型状态</span>
               <Badge variant="outline">
-                {modelStatus.total_loaded} / {Object.keys(modelStatus.models).length}
+                {modelStatus.total_loaded} /{" "}
+                {Object.keys(modelStatus.models).length}
               </Badge>
             </div>
             <div className="space-y-2">
