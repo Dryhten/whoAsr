@@ -21,20 +21,6 @@ export default defineConfig({
 			usePolling: false,
 			interval: 100,
 		},
-		proxy: {
-			'/punctuation': {
-				target: 'http://localhost:8000',
-				changeOrigin: true,
-			},
-			'/offline': {
-				target: 'http://localhost:8000',
-				changeOrigin: true,
-			},
-			'/model': {
-				target: 'http://localhost:8000',
-				changeOrigin: true,
-			},
-		},
 	},
 
 	optimizeDeps: {

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
+import { API_BASE_URL, API_ENDPOINTS } from "@/lib/config";
 
 interface ModelStatus {
   loaded: boolean;
@@ -53,7 +54,7 @@ export function ModelManagementCard({
 
   const fetchModelStatus = async () => {
     try {
-      const response = await fetch("/model/status");
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.MODEL_STATUS}`);
       if (!response.ok) {
         throw new Error(`Failed to fetch model status: ${response.status}`);
       }
@@ -70,7 +71,7 @@ export function ModelManagementCard({
     setError("");
 
     try {
-      const response = await fetch("/model/load", {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.MODEL_LOAD}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -104,7 +105,7 @@ export function ModelManagementCard({
     setError("");
 
     try {
-      const response = await fetch(`/model/unload/${modelType}`, {
+      const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.MODEL_UNLOAD(modelType)}`, {
         method: "POST",
       });
 

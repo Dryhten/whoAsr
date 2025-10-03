@@ -3,8 +3,7 @@
  * 与后端 FunASR API 服务器通信
  */
 
-// API 基础配置
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+import { API_BASE_URL, API_ENDPOINTS } from '@/lib/config';
 
 // WebSocket 消息类型
 export interface WebSocketMessage {
@@ -190,7 +189,7 @@ export class SpeechApi {
     // 健康检查
     async healthCheck(): Promise<HealthCheckResponse> {
         try {
-            const response = await fetch(`${this.baseUrl}/health`);
+            const response = await fetch(`${this.baseUrl}${API_ENDPOINTS.HEALTH}`);
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
@@ -309,6 +308,7 @@ export class AudioRecorder {
 
             // 连接音频节点
             this.source.connect(this.processor);
+            // ScriptProcessorNode需要连接到某个地方才会触发onaudioprocess事件
             this.processor.connect(this.audioContext.destination);
 
             this.isRecordingFlag = true;
@@ -580,3 +580,369 @@ export function isErrorMessage(message: WebSocketMessage): message is ErrorMessa
 export function isStatusMessage(message: WebSocketMessage): message is StatusMessage {
     return message.type === 'status';
 }
+
+// 工具函数：检查浏览器是否支持音频录制
+export function checkAudioSupport(): { supported: boolean; error?: string } {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        return {
+            supported: false,
+            error: 'Your browser does not support audio recording. Please use a modern browser like Chrome, Firefox, or Edge.',
+        };
+    }
+
+    if (!window.AudioContext && !(window as any).webkitAudioContext) {
+        return {
+            supported: false,
+            error: 'Your browser does not support Web Audio API. Please use a modern browser.',
+        };
+    }
+
+    return { supported: true };
+}
+
+// ============ VAD (Voice Activity Detection) API ============
+
+// VAD Types
+export type VADSegment = number[];  // [start, end] in ms, or [start] for start-only, [-1] for end
+export type VADSegmentList = VADSegment[];  // List of segments
+
+export interface VADResponse {
+    success: boolean;
+    message: string;
+    segments?: VADSegmentList[];
+    file_path?: string;
+}
+
+export interface VADWebSocketMessage {
+    type: string;
+    segments?: VADSegmentList[];
+    is_final?: boolean;
+    message?: string;
+}
+
+// VAD WebSocket class
+export class VADWebSocket {
+    private ws: WebSocket | null = null;
+    private clientId: string;
+    private onMessage?: (message: VADWebSocketMessage) => void;
+    private onOpen?: () => void;
+    private onClose?: () => void;
+    private onError?: (error: string) => void;
+
+    constructor(clientId: string) {
+        this.clientId = clientId;
+    }
+
+    connect(): Promise<void> {
+        return new Promise((resolve, reject) => {
+            try {
+                // In development, use direct connection to backend; in production use relative path
+                let wsUrl: string;
+                if (window.location.hostname === 'localhost' && window.location.port === '5173') {
+                    // Development environment - connect directly to backend
+                    wsUrl = `ws://localhost:8000/vad/ws/${this.clientId}`;
+                } else {
+                    // Production environment - use relative path
+                    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    wsUrl = `${wsProtocol}//${window.location.host}/vad/ws/${this.clientId}`;
+                }
+
+                console.log('Connecting VAD WebSocket to:', wsUrl);
+                this.ws = new WebSocket(wsUrl);
+
+                this.ws.onopen = () => {
+                    if (this.onOpen) this.onOpen();
+                    resolve();
+                };
+
+                this.ws.onmessage = (event) => {
+                    try {
+                        const message: VADWebSocketMessage = JSON.parse(event.data);
+                        if (this.onMessage) this.onMessage(message);
+                    } catch (error) {
+                        console.error('Failed to parse VAD WebSocket message:', error);
+                    }
+                };
+
+                this.ws.onclose = () => {
+                    if (this.onClose) this.onClose();
+                };
+
+                this.ws.onerror = (error) => {
+                    const errorMsg = `VAD WebSocket error: ${error}`;
+                    console.error('VAD WebSocket error:', error);
+                    if (this.onError) this.onError(errorMsg);
+                    reject(new Error(errorMsg));
+                };
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
+    disconnect() {
+        if (this.ws) {
+            this.ws.close();
+            this.ws = null;
+        }
+    }
+
+    sendStartVAD() {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({ type: "start_vad" }));
+        }
+    }
+
+    sendStopVAD() {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({ type: "stop_vad" }));
+        }
+    }
+
+    sendAudioChunk(audioData: string) {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({
+                type: "audio_chunk",
+                data: audioData
+            }));
+        }
+    }
+
+    sendPing() {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({ type: "ping" }));
+        }
+    }
+
+    isConnected(): boolean {
+        return this.ws?.readyState === WebSocket.OPEN;
+    }
+
+    onMessageReceived(callback: (message: VADWebSocketMessage) => void) {
+        this.onMessage = callback;
+    }
+
+    onConnectionOpen(callback: () => void) {
+        this.onOpen = callback;
+    }
+
+    onConnectionClose(callback: () => void) {
+        this.onClose = callback;
+    }
+
+    onConnectionError(callback: (error: string) => void) {
+        this.onError = callback;
+    }
+}
+
+// VAD API class
+export class VADAPI {
+    static async uploadFile(file: File): Promise<VADResponse> {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await fetch(`${API_BASE_URL}/vad/upload_and_detect`, {
+            method: "POST",
+            body: formData,
+        });
+
+        if (!response.ok) {
+            throw new Error(`Upload failed: ${response.status}`);
+        }
+
+        return response.json();
+    }
+
+    static async detectVoiceActivity(filePath: string): Promise<VADResponse> {
+        const response = await fetch(`${API_BASE_URL}/vad/detect`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ file_path: filePath }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`VAD detection failed: ${response.status}`);
+        }
+
+        return response.json();
+    }
+
+    static formatDuration(ms: number): string {
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        const milliseconds = ms % 1000;
+
+        if (minutes > 0) {
+            return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
+        } else {
+            return `${seconds}.${milliseconds.toString().padStart(3, '0')}s`;
+        }
+    }
+}
+
+// ============ Timestamp API ============
+
+// Timestamp Types
+export interface TimestampSegment {
+    text: string;
+    start: number;
+    end: number;
+    confidence: number;
+}
+
+export interface TimestampResponse {
+    success: boolean;
+    message: string;
+    results?: TimestampSegment[];
+    file_path?: string;
+    text_file_path?: string;
+}
+
+export interface TimestampUploadResponse {
+    success: boolean;
+    message: string;
+    audio_file_path?: string;
+    text_file_path?: string;
+}
+
+export interface TimestampRequest {
+    audio_file_path: string;
+    text_file_path?: string;
+    text_content?: string;
+}
+
+// Timestamp API class
+export class TimestampAPI {
+    static async uploadAndPredict(
+        audioFile: File,
+        textFile?: File,
+        textContent?: string
+    ): Promise<TimestampResponse> {
+        const formData = new FormData();
+        formData.append("audio_file", audioFile);
+
+        if (textFile) {
+            formData.append("text_file", textFile);
+        }
+
+        if (textContent) {
+            formData.append("text_content", textContent);
+        }
+
+        const response = await fetch(`${API_BASE_URL}/timestamp/upload_and_predict`, {
+            method: "POST",
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `Upload failed: ${response.status}`);
+        }
+
+        return response.json();
+    }
+
+    static async uploadFiles(
+        audioFile: File,
+        textFile?: File,
+        textContent?: string
+    ): Promise<TimestampUploadResponse> {
+        const formData = new FormData();
+        formData.append("audio_file", audioFile);
+
+        if (textFile) {
+            formData.append("text_file", textFile);
+        }
+
+        if (textContent) {
+            formData.append("text_content", textContent);
+        }
+
+        const response = await fetch(`${API_BASE_URL}/timestamp/upload`, {
+            method: "POST",
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `Upload failed: ${response.status}`);
+        }
+
+        return response.json();
+    }
+
+    static async predictTimestamps(request: TimestampRequest): Promise<TimestampResponse> {
+        const response = await fetch(`${API_BASE_URL}/timestamp/predict`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(request),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `Prediction failed: ${response.status}`);
+        }
+
+        return response.json();
+    }
+
+    static formatDuration(ms: number): string {
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        const milliseconds = ms % 1000;
+
+        if (minutes > 0) {
+            return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
+        } else {
+            return `${seconds}.${milliseconds.toString().padStart(3, '0')}s`;
+        }
+    }
+
+    static formatTime(ms: number): string {
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+
+        if (minutes > 0) {
+            return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+        } else {
+            return `0:${remainingSeconds.toString().padStart(2, '0')}`;
+        }
+    }
+
+    static validateTextFile(file: File): boolean {
+        const validTypes = ['text/plain', 'text/html', 'text/css', 'text/javascript', 'application/json'];
+        const validExtensions = ['.txt', '.text', '.md', '.json', '.html', '.css', '.js'];
+
+        return validTypes.includes(file.type) ||
+               validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+    }
+
+    static validateAudioFile(file: File): boolean {
+        const validTypes = ['audio/wav', 'audio/mp3', 'audio/mpeg', 'audio/mp4', 'audio/m4a', 'audio/flac', 'audio/ogg'];
+        const validExtensions = ['.wav', '.mp3', '.m4a', '.flac', '.ogg'];
+
+        return validTypes.includes(file.type) ||
+               validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+    }
+
+    static readFileAsText(file: File): Promise<string> {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                resolve(e.target?.result as string);
+            };
+            reader.onerror = (e) => {
+                reject(new Error(`Failed to read file: ${e}`));
+            };
+            reader.readAsText(file, 'UTF-8');
+        });
+    }
+}
+
