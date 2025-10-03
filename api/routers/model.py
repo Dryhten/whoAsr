@@ -37,11 +37,11 @@ class ModelUnloadResponse(BaseModel):
     loaded: bool
 
 
-class ModelStatusResponse(BaseModel):
-    """Response model for model status"""
+class ModelInfoResponse(BaseModel):
+    """Response model for model information"""
     models: Dict[str, Dict[str, Any]]
     total_loaded: int
-    available_types: Dict[str, str]
+    available_models: Dict[str, Dict[str, Any]]
 
 
 @router.post("/load", response_model=ModelLoadResponse)
@@ -149,56 +149,44 @@ async def unload_model(model_type: str):
         )
 
 
-@router.get("/status", response_model=ModelStatusResponse)
-async def get_model_status():
-    """Get status of all models"""
+@router.get("/info", response_model=ModelInfoResponse)
+async def get_model_info():
+    """Get comprehensive information about all models"""
     try:
+        # Get loaded models status
         models_status = get_loaded_models_status()
         total_loaded = sum(1 for status in models_status.values() if status["loaded"])
 
-        # Get available model types with display names
-        available_types = {}
+        # Get available model types with full information
+        available_models = {}
         for model_type in ModelType:
             config = get_model_config(model_type)
-            available_types[model_type.value] = config.display_name if config else model_type.value
+            loaded_status = models_status.get(model_type.value, {})
 
-        return ModelStatusResponse(
-            models=models_status,
-            total_loaded=total_loaded,
-            available_types=available_types
-        )
-
-    except Exception as e:
-        logger.error(f"Error getting model status: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get model status: {str(e)}"
-        )
-
-
-@router.get("/types")
-async def get_available_model_types():
-    """Get list of available model types with descriptions"""
-    try:
-        types_info = {}
-        for model_type in ModelType:
-            config = get_model_config(model_type)
-            types_info[model_type.value] = {
+            available_models[model_type.value] = {
                 "display_name": config.display_name if config else model_type.value,
                 "description": config.description if config else "",
                 "model_name": config.model_name if config else "",
                 "auto_load": config.auto_load if config else False,
                 "dependencies": config.dependencies if config else [],
+                "loaded": loaded_status.get("loaded", False),
+                "config": config.config if config else {},
             }
 
-        return {"model_types": types_info}
+        return ModelInfoResponse(
+            models=models_status,
+            total_loaded=total_loaded,
+            available_models=available_models
+        )
 
     except Exception as e:
-        logger.error(f"Error getting model types: {e}")
+        logger.error(f"Error getting model info: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to get model types: {str(e)}"
+            detail=f"Failed to get model info: {str(e)}"
         )
+
+
 
 
 @router.get("/config/{model_type}")

@@ -15,6 +15,7 @@ dependencies = [
     "fastapi",
     "uvicorn[standard]",
     "websockets",
+    "psutil",
 ]
 
 [[tool.uv.index]]
