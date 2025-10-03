@@ -163,7 +163,7 @@ def _get_api_endpoints(model_type: str) -> list:
 # Mount static files
 frontend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
 if os.path.exists(frontend_path):
-    app.mount("/static", StaticFiles(directory=os.path.join(frontend_path, "assets")), name="static")
+    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_path, "assets")), name="assets")
 
 # Register WebSocket routes
 app.websocket("/ws/{client_id}")(websocket_endpoint)
