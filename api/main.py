@@ -8,14 +8,14 @@ from fastapi import UploadFile, File, Form
 from typing import Optional
 from contextlib import asynccontextmanager
 import os
-from .core.model import get_loaded_models_status
-from .core.config import logger
-from .routers.websocket import websocket_endpoint
-from .routers.model import router as model_router
-from .routers.offline import router as offline_router
-from .routers.punctuation import router as punctuation_router
-from .routers.vad import router as vad_router
-from .routers.timestamp import router as timestamp_router
+from api.core.model import get_loaded_models_status
+from api.core.config import logger
+from api.routers.websocket import websocket_endpoint
+from api.routers.model import router as model_router
+from api.routers.offline import router as offline_router
+from api.routers.punctuation import router as punctuation_router
+from api.routers.vad import router as vad_router
+from api.routers.timestamp import router as timestamp_router
 
 
 
@@ -47,20 +47,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.get("/")
-async def read_root():
-    """Serve the frontend application"""
-    frontend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
-    if os.path.exists(os.path.join(frontend_path, "index.html")):
-        return FileResponse(os.path.join(frontend_path, "index.html"))
-    return {
-        "message": "FunASR Speech Recognition API",
-        "docs": "/docs",
-        "health": "/health",
-        "note": "Frontend not found. Build the frontend with 'npm run build' in the frontend directory."
-    }
 
 
 @app.get("/health")
@@ -96,7 +82,7 @@ async def health_check():
     for model_type, status in models_status.items():
         config = None
         try:
-            from .core.models import get_model_config, ModelType
+            from api.core.models import get_model_config, ModelType
             config = get_model_config(ModelType(model_type))
         except:
             pass
@@ -170,7 +156,6 @@ app.include_router(punctuation_router)
 # Register VAD routes
 app.include_router(vad_router)
 
-
 # Backward compatibility endpoint - redirects to /offline/recognize
 @app.post("/recognize", include_in_schema=False)
 async def recognize_speech_compatibility(
@@ -180,8 +165,49 @@ async def recognize_speech_compatibility(
     hotword: Optional[str] = Form(None),
 ):
     """Backward compatibility endpoint for speech recognition (redirects to /offline/recognize)"""
-    from .routers.offline import recognize_audio_file
+    from api.routers.offline import recognize_audio_file
     return await recognize_audio_file(file, batch_size_s, batch_size_threshold_s, hotword)
+
+# Frontend routes (must be last to catch all non-API routes)
+@app.get("/")
+async def read_root():
+    """Serve the frontend application"""
+    frontend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
+    if os.path.exists(os.path.join(frontend_path, "index.html")):
+        return FileResponse(os.path.join(frontend_path, "index.html"))
+    return {
+        "message": "FunASR Speech Recognition API",
+        "docs": "/docs",
+        "health": "/health",
+        "note": "Frontend not found. Build the frontend with 'npm run build' in the frontend directory."
+    }
+
+
+@app.get("/{full_path:path}")
+async def catch_all_frontend_routes(full_path: str):
+    """Catch-all route for frontend SPA routes"""
+    frontend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
+    index_path = os.path.join(frontend_path, "index.html")
+
+    # If frontend is built, serve index.html for all non-API routes
+    if os.path.exists(index_path):
+        # Check if this looks like an API route
+        api_prefixes = ['/ws', '/docs', '/model', '/offline', '/punctuation', '/vad', '/timestamp', '/recognize']
+        if any(full_path.startswith(prefix) for prefix in api_prefixes):
+            # Let FastAPI return 404 for unknown API routes
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="API endpoint not found")
+
+        # For all other routes, serve the frontend index.html
+        return FileResponse(index_path)
+
+    # If frontend not built, return API info
+    return {
+        "message": "FunASR Speech Recognition API",
+        "docs": "/docs",
+        "health": "/health",
+        "note": "Frontend not found. Build the frontend with 'npm run build' in the frontend directory."
+    }
 
 
 
