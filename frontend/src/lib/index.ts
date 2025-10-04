@@ -10,4 +10,4 @@ export * from './spacing';
 
 // Re-export commonly used combinations
 export { formatFileSize, formatDuration, formatVADSegments, formatErrorMessage } from './format';
-export { spacing, layoutPatterns, componentSpacing } from './spacing';
+export { spacing } from './spacing';

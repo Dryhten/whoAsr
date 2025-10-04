@@ -123,7 +123,7 @@ export function Vad() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Left Column - File Upload */}
           <div className="space-y-6">
-            <ModelManagementCard title="VAD模型" modelName="vad" />
+            <ModelManagementCard requiredModel="vad" title="VAD模型" />
 
             {/* File Upload Section */}
             <Card>
@@ -194,11 +194,14 @@ export function Vad() {
                       <CardContent className="pt-6">
                         <div className="text-center">
                           <div className="text-2xl font-bold">
-                            {segments.reduce((total, segment) => {
-                              if (Array.isArray(segment) && segment.length >= 2) {
-                                const start = segment[0] as number;
-                                const end = segment[1] as number;
-                                return total + (end - start);
+                            {segments.reduce((total, segmentList) => {
+                              if (Array.isArray(segmentList) && segmentList.length > 0) {
+                                const segment = segmentList[0];
+                                if (Array.isArray(segment) && segment.length >= 2) {
+                                  const start = segment[0] as number;
+                                  const end = segment[1] as number;
+                                  return total + (end - start);
+                                }
                               }
                               return total;
                             }, 0) / 1000}s
@@ -217,12 +220,17 @@ export function Vad() {
                       </CardHeader>
                       <CardContent>
                         <div className="relative h-24 bg-muted rounded-lg overflow-hidden">
-                          {segments.map((segment, index) => {
+                          {segments.map((segmentList, listIndex) => {
+                            if (!Array.isArray(segmentList) || segmentList.length === 0) return null;
+
+                            const segment = segmentList[0];
                             if (!Array.isArray(segment) || segment.length < 2) return null;
 
-                            const [start, end] = segment;
-                            const maxDuration = Math.max(...segments.map(s =>
-                              Array.isArray(s) && s.length >= 2 ? (s[1] as number) || 0 : 0
+                            const [start, end] = segment as number[];
+                            const maxDuration = Math.max(...segments.map(list =>
+                              Array.isArray(list) && list.length > 0 && Array.isArray(list[0]) && list[0].length >= 2
+                                ? (list[0][1] as number) || 0
+                                : 0
                             ));
                             const left = (start / maxDuration) * 100;
                             const width = ((end - start) / maxDuration) * 100;
@@ -230,15 +238,15 @@ export function Vad() {
 
                             return (
                               <div
-                                key={index}
+                                key={listIndex}
                                 className="absolute h-8 bg-primary hover:bg-primary/80 rounded cursor-pointer transition-all hover:scale-y-110 flex items-center justify-center text-xs text-primary-foreground font-medium"
                                 style={{
-                                  top: `${(index % 3) * 32}px`,
+                                  top: `${(listIndex % 3) * 32}px`,
                                   left: `${left}%`,
                                   width: `${width}%`,
                                   minWidth: width < 1 ? '2px' : undefined
                                 }}
-                                title={`片段 ${index + 1}: ${start}ms - ${end}ms (${duration}秒)`}
+                                title={`片段 ${listIndex + 1}: ${start}ms - ${end}ms (${duration}秒)`}
                               >
                                 {width > 10 && `${duration}秒`}
                               </div>
@@ -256,14 +264,34 @@ export function Vad() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2 max-h-64 overflow-y-auto">
-                        {formatVADSegments(segments as unknown as number[][]).map((segmentText, index) => (
-                          <div
-                            key={index}
-                            className="p-3 bg-muted/50 rounded-lg text-sm"
-                          >
-                            {segmentText}
-                          </div>
-                        ))}
+                        {segments.map((segmentList, listIndex) => {
+                          if (!Array.isArray(segmentList) || segmentList.length === 0) {
+                            return (
+                              <div key={listIndex} className="p-3 bg-muted/50 rounded-lg text-sm">
+                                片段 {listIndex + 1}: 数据格式错误
+                              </div>
+                            );
+                          }
+
+                          const segment = segmentList[0];
+                          if (!Array.isArray(segment) || segment.length < 2) {
+                            return (
+                              <div key={listIndex} className="p-3 bg-muted/50 rounded-lg text-sm">
+                                片段 {listIndex + 1}: 数据格式错误
+                              </div>
+                            );
+                          }
+
+                          const [start, end] = segment as number[];
+                          const duration = ((end - start) / 1000).toFixed(2);
+                          const segmentText = `片段 ${listIndex + 1}: ${start}ms - ${end}ms (时长: ${duration}秒)`;
+
+                          return (
+                            <div key={listIndex} className="p-3 bg-muted/50 rounded-lg text-sm">
+                              {segmentText}
+                            </div>
+                          );
+                        })}
                       </div>
                     </CardContent>
                   </Card>
