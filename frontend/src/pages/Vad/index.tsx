@@ -2,28 +2,20 @@ import { useState } from "preact/hooks";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ModelManagementCard } from "@/components/ModelManagementCard";
 import { VADAPI, VADResponse, VADSegmentList } from "../../api";
-import { ErrorIcon, SpinnerIcon, CheckIcon, TrashIcon, InfoIcon, CopyIcon, UploadIcon } from "@/components/icons";
+import { FileUploader, ResultDisplay } from "@/components/common";
+import { formatFileSize, formatVADSegments, formatErrorMessage } from "@/lib/format";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
 export function Vad() {
   useDocumentTitle("语音端点检测");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [results, setResults] = useState<VADSegmentList[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleFileSelect = (event: Event) => {
-    const target = event.target as HTMLInputElement;
-    if (target.files && target.files.length > 0) {
-      const file = target.files[0];
-      setSelectedFile(file);
-      setError("");
-      setResults([]);
-    }
-  };
+  const selectedFile = selectedFiles[0] || null;
 
   const handleUpload = async () => {
     if (!selectedFile) {
@@ -42,43 +34,23 @@ export function Vad() {
       } else {
         throw new Error(result.message || "VAD检测失败");
       }
-    } catch (err: any) {
-      setError(`检测失败: ${err.message}`);
+    } catch (err: unknown) {
+      setError(`检测失败: ${formatErrorMessage(err)}`);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleClear = () => {
-    setSelectedFile(null);
+    setSelectedFiles([]);
     setResults([]);
     setError("");
-    // Reset file input
-    const fileInput = document.getElementById("file-input") as HTMLInputElement;
-    if (fileInput) {
-      fileInput.value = "";
+  };
+
+  const handleRetry = () => {
+    if (selectedFile) {
+      handleUpload();
     }
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-  };
-
-  const formatSegments = (segments: VADSegmentList[]) => {
-    return segments.map((segment, index) => {
-      if (Array.isArray(segment) && segment.length >= 2) {
-        const [start, end] = segment;
-        if (typeof start === 'number' && typeof end === 'number') {
-          const duration = ((end - start) / 1000).toFixed(2);
-          return `片段 ${index + 1}: ${start}ms - ${end}ms (时长: ${duration}秒)`;
-        }
-      }
-      return `片段 ${index + 1}: ${JSON.stringify(segment)}`;
-    });
   };
 
   return (
@@ -148,376 +120,156 @@ export function Vad() {
           </Card>
         </div>
 
-        <div className="grid grid-cols-3 gap-6">
-          {/* Main Content */}
-          <div className="col-span-2 space-y-6">
-            {/* Error Alert */}
-            {error && (
-              <Alert variant="destructive">
-                <ErrorIcon className="h-4 w-4" />
-                <AlertTitle>错误</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Left Column - File Upload */}
+          <div className="space-y-6">
+            <ModelManagementCard title="VAD模型" modelName="vad" />
 
-            {/* File Upload Panel */}
+            {/* File Upload Section */}
             <Card>
-              <CardHeader className="pb-4">
-                <CardTitle>文件上传</CardTitle>
+              <CardHeader>
+                <CardTitle>选择音频文件</CardTitle>
                 <CardDescription>
-                  选择音频文件进行语音端点检测 (支持 WAV, MP3, M4A, FLAC, OGG)
+                  支持 WAV、MP3、M4A、FLAC、OGG 格式，最大 100MB
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6">
-                    <input
-                      id="file-input"
-                      type="file"
-                      accept="audio/*"
-                      onChange={handleFileSelect}
-                      className="hidden"
-                    />
-                    <div className="text-center">
-                      <UploadIcon className="mx-auto h-12 w-12 text-muted-foreground" />
-                      <div className="mt-4">
-                        <label
-                          htmlFor="file-input"
-                          className="cursor-pointer inline-flex items-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90"
-                        >
-                          选择文件
-                        </label>
-                      </div>
-                      {selectedFile && (
-                        <div className="mt-4 text-sm text-muted-foreground">
-                          <p>已选择: {selectedFile.name}</p>
-                          <p>大小: {formatFileSize(selectedFile.size)}</p>
-                          <p>类型: {selectedFile.type}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                <FileUploader
+                  accept=".wav,.mp3,.m4a,.flac,.ogg"
+                  multiple={false}
+                  maxSize={100 * 1024 * 1024}
+                  onFilesSelected={setSelectedFiles}
+                  onError={setError}
+                  disabled={isLoading}
+                />
 
-                  <div className="flex gap-4">
+                {/* Action Buttons */}
+                {selectedFile && (
+                  <div className="flex space-x-4 mt-6">
                     <Button
                       onClick={handleUpload}
-                      disabled={isLoading || !selectedFile}
-                      size="lg"
+                      disabled={isLoading}
                       className="flex-1"
                     >
-                      {isLoading ? (
-                        <>
-                          <SpinnerIcon className="mr-2 h-4 w-4" />
-                          处理中
-                        </>
-                      ) : (
-                        <>
-                          <CheckIcon className="mr-2 h-4 w-4" />
-                          开始检测
-                        </>
-                      )}
+                      {isLoading ? "检测中..." : "开始检测"}
                     </Button>
-
                     <Button
-                      onClick={handleClear}
                       variant="outline"
-                      size="lg"
-                      className="flex-1"
+                      onClick={handleClear}
+                      disabled={isLoading}
                     >
-                      <TrashIcon className="mr-2 h-4 w-4" />
-                      清空
+                      清除
                     </Button>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
-
-            {/* Results Panel */}
-            {results.length > 0 && (
-              <Card>
-                <CardHeader className="pb-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>检测结果</CardTitle>
-                      <CardDescription>
-                        共检测到 {results.length} 个语音活动片段
-                      </CardDescription>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const resultText = formatSegments(results).join('\n');
-                          navigator.clipboard.writeText(resultText);
-                        }}
-                      >
-                        <CopyIcon className="mr-2 h-4 w-4" />
-                        复制
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* Timeline Visualization */}
-                  <div className="rounded-lg border bg-muted p-6">
-                    <div className="mb-4">
-                      <h3 className="text-lg font-medium mb-2">时间轴视图</h3>
-                      <p className="text-sm text-muted-foreground">
-                        语音活动片段的时间分布 (点击片段查看详情)
-                      </p>
-                    </div>
-
-                    {/* Timeline */}
-                    <div className="relative">
-                      {(() => {
-                        const segments = results.filter(segment =>
-                          Array.isArray(segment) && segment.length >= 2 &&
-                          typeof segment[0] === 'number' && typeof segment[1] === 'number'
-                        );
-
-                        if (segments.length === 0) {
-                          return (
-                            <div className="text-center py-8 text-muted-foreground">
-                              无有效的时间片段数据
-                            </div>
-                          );
-                        }
-
-                        const maxTime = Math.max(...segments.map(s => s[1] as unknown as number));
-                        const timelineWidth = 100; // percentage
-
-                        return (
-                          <div>
-                            {/* Time labels */}
-                            <div className="relative h-8 mb-2">
-                              <div className="absolute inset-0 flex justify-between text-xs text-muted-foreground">
-                                <span>0ms</span>
-                                <span>{Math.round(maxTime / 2)}ms</span>
-                                <span>{maxTime}ms</span>
-                              </div>
-                            </div>
-
-                            {/* Timeline bar */}
-                            <div className="relative h-12 bg-background border rounded-lg overflow-hidden">
-                              <div className="absolute inset-0 flex items-center px-2">
-                                {segments.map((segment, index) => {
-                                  const start = segment[0] as unknown as number;
-                                  const end = segment[1] as unknown as number;
-                                  const left = (start / maxTime) * timelineWidth;
-                                  const width = ((end - start) / maxTime) * timelineWidth;
-                                  const duration = ((end - start) / 1000).toFixed(2);
-
-                                  return (
-                                    <div
-                                      key={index}
-                                      className="absolute h-8 bg-primary hover:bg-primary/80 rounded cursor-pointer transition-all hover:scale-y-110 flex items-center justify-center text-xs text-primary-foreground font-medium"
-                                      style={{
-                                        left: `${left}%`,
-                                        width: `${width}%`,
-                                        minWidth: width < 1 ? '2px' : undefined
-                                      }}
-                                      title={`片段 ${index + 1}: ${start}ms - ${end}ms (${duration}秒)`}
-                                    >
-                                      {width > 5 && `${index + 1}`}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-
-                            {/* Legend */}
-                            <div className="mt-4 flex items-center justify-center space-x-6 text-xs text-muted-foreground">
-                              <div className="flex items-center">
-                                <div className="w-3 h-3 bg-primary rounded mr-2"></div>
-                                <span>语音活动</span>
-                              </div>
-                              <div className="flex items-center">
-                                <div className="w-3 h-3 bg-muted border rounded mr-2"></div>
-                                <span>静音/非语音</span>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-
-                  {/* Detailed Segments List */}
-                  <div className="rounded-lg border bg-muted p-6">
-                    <div className="mb-4">
-                      <h3 className="text-lg font-medium mb-2">详细片段信息</h3>
-                      <p className="text-sm text-muted-foreground">
-                        所有检测到的语音活动片段详细信息
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      {formatSegments(results).map((segmentText, index) => (
-                        <div key={index} className="text-sm leading-relaxed p-3 bg-background rounded border hover:border-primary/50 transition-colors">
-                          <div className="flex items-center justify-between">
-                            <span>{segmentText}</span>
-                            {(() => {
-                              const segment = results[index];
-                              if (Array.isArray(segment) && segment.length >= 2 &&
-                                  typeof segment[0] === 'number' && typeof segment[1] === 'number') {
-                                const duration = ((segment[1]! - segment[0]!) / 1000).toFixed(2);
-                                return (
-                                  <Badge variant="outline" className="text-xs">
-                                    {duration}秒
-                                  </Badge>
-                                );
-                              }
-                              return null;
-                            })()}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Statistics */}
-                  <div className="grid grid-cols-4 gap-4">
-                    <Card>
-                      <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-primary">{results.length}</div>
-                        <div className="text-xs text-muted-foreground">检测片段</div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-primary">
-                          {(() => {
-                            const validSegments = results.filter(segment =>
-                              Array.isArray(segment) && segment.length >= 2 &&
-                              typeof segment[0] === 'number' && typeof segment[1] === 'number'
-                            );
-                            if (validSegments.length === 0) return "0";
-                            const totalDuration = validSegments.reduce((sum, segment) =>
-                              sum + ((segment[1] as unknown as number) - (segment[0] as unknown as number)), 0
-                            );
-                            return (totalDuration / 1000).toFixed(1);
-                          })()}
-                        </div>
-                        <div className="text-xs text-muted-foreground">总语音时长(秒)</div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-primary">
-                          {(() => {
-                            const validSegments = results.filter(segment =>
-                              Array.isArray(segment) && segment.length >= 2 &&
-                              typeof segment[0] === 'number' && typeof segment[1] === 'number'
-                            );
-                            if (validSegments.length === 0) return "0";
-                            const totalDuration = validSegments.reduce((sum, segment) =>
-                              sum + ((segment[1] as unknown as number) - (segment[0] as unknown as number)), 0
-                            );
-                            const avgDuration = totalDuration / validSegments.length;
-                            return (avgDuration / 1000).toFixed(2);
-                          })()}
-                        </div>
-                        <div className="text-xs text-muted-foreground">平均片段时长(秒)</div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-primary">
-                          {(() => {
-                            const validSegments = results.filter(segment =>
-                              Array.isArray(segment) && segment.length >= 2 &&
-                              typeof segment[0] === 'number' && typeof segment[1] === 'number'
-                            );
-                            if (validSegments.length === 0) return "0%";
-                            const totalSpeechTime = validSegments.reduce((sum, segment) =>
-                              sum + ((segment[1] as unknown as number) - (segment[0] as unknown as number)), 0
-                            );
-                            const maxTime = Math.max(...validSegments.map(s => s[1] as unknown as number));
-                            const percentage = ((totalSpeechTime / maxTime) * 100).toFixed(1);
-                            return `${percentage}%`;
-                          })()}
-                        </div>
-                        <div className="text-xs text-muted-foreground">语音占比</div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <InfoIcon className="mr-2 h-4 w-4" />
-                    <span>VAD检测完成</span>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Empty State */}
-            {!results.length && !error && !isLoading && (
-              <Card className="border-dashed">
-                <CardContent className="flex h-[400px] flex-col items-center justify-center p-6">
-                  <div className="flex flex-col items-center gap-1 text-center">
-                    <UploadIcon className="h-12 w-12 text-muted-foreground" />
-                    <h3 className="mt-4 text-lg font-semibold">准备上传文件</h3>
-                    <p className="text-sm text-muted-foreground">
-                      选择音频文件，点击"开始检测"进行语音端点检测
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
           </div>
 
-          {/* Sidebar */}
+          {/* Right Column - Results */}
           <div className="space-y-6">
-            <ModelManagementCard
-              requiredModel="vad"
-              compact={false}
-              showLoadButton={true}
-            />
+            <ResultDisplay<VADSegmentList[]>
+              title="VAD检测结果"
+              description="检测到的语音片段时间轴"
+              data={results.length > 0 ? results : null}
+              isLoading={isLoading}
+              error={error || null}
+              onClear={handleClear}
+              onRetry={handleRetry}
+              emptyMessage="请上传音频文件开始检测"
+            >
+              {(segments: VADSegmentList[]) => (
+                <div className="space-y-4">
+                  {/* 摘要信息 */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold">{segments.length}</div>
+                          <div className="text-sm text-muted-foreground">检测片段</div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold">
+                            {segments.reduce((total, segment) => {
+                              if (Array.isArray(segment) && segment.length >= 2) {
+                                const start = segment[0] as number;
+                                const end = segment[1] as number;
+                                return total + (end - start);
+                              }
+                              return total;
+                            }, 0) / 1000}s
+                          </div>
+                          <div className="text-sm text-muted-foreground">语音时长</div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
 
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">功能说明</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="space-y-3 text-sm text-muted-foreground">
-                  <p>• 高精度语音端点检测</p>
-                  <p>• 支持多种音频格式</p>
-                  <p>• 离线处理，保护隐私</p>
-                  <p>• 毫秒级时间精度</p>
-                  <p>• 批量文件处理</p>
-                  <p>• 详细时间片段信息</p>
-                </div>
-              </CardContent>
-            </Card>
+                  {/* 可视化时间轴 */}
+                  {segments.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">时间轴可视化</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="relative h-24 bg-muted rounded-lg overflow-hidden">
+                          {segments.map((segment, index) => {
+                            if (!Array.isArray(segment) || segment.length < 2) return null;
 
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">支持格式</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="flex flex-wrap gap-1">
-                  <Badge variant="outline" className="text-xs">WAV</Badge>
-                  <Badge variant="outline" className="text-xs">MP3</Badge>
-                  <Badge variant="outline" className="text-xs">M4A</Badge>
-                  <Badge variant="outline" className="text-xs">FLAC</Badge>
-                  <Badge variant="outline" className="text-xs">OGG</Badge>
-                </div>
-              </CardContent>
-            </Card>
+                            const [start, end] = segment;
+                            const maxDuration = Math.max(...segments.map(s =>
+                              Array.isArray(s) && s.length >= 2 ? (s[1] as number) || 0 : 0
+                            ));
+                            const left = (start / maxDuration) * 100;
+                            const width = ((end - start) / maxDuration) * 100;
+                            const duration = ((end - start) / 1000).toFixed(2);
 
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">技术参数</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="space-y-2 text-sm text-muted-foreground">
-                  <p>模型: FSMN-VAD</p>
-                  <p>时间精度: 毫秒级</p>
-                  <p>检测类型: 语音活动检测</p>
-                  <p>处理方式: 离线批量</p>
+                            return (
+                              <div
+                                key={index}
+                                className="absolute h-8 bg-primary hover:bg-primary/80 rounded cursor-pointer transition-all hover:scale-y-110 flex items-center justify-center text-xs text-primary-foreground font-medium"
+                                style={{
+                                  top: `${(index % 3) * 32}px`,
+                                  left: `${left}%`,
+                                  width: `${width}%`,
+                                  minWidth: width < 1 ? '2px' : undefined
+                                }}
+                                title={`片段 ${index + 1}: ${start}ms - ${end}ms (${duration}秒)`}
+                              >
+                                {width > 10 && `${duration}秒`}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* 片段列表 */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">片段详情</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {formatVADSegments(segments as unknown as number[][]).map((segmentText, index) => (
+                          <div
+                            key={index}
+                            className="p-3 bg-muted/50 rounded-lg text-sm"
+                          >
+                            {segmentText}
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
-              </CardContent>
-            </Card>
+              )}
+            </ResultDisplay>
           </div>
         </div>
       </div>

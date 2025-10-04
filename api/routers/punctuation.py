@@ -47,3 +47,9 @@ async def add_punctuation_endpoint(request: PunctuationRequest):
         )
 
 
+@router.post("/punctuate", response_model=PunctuationResponse)
+async def add_punctuation_compatibility(request: PunctuationRequest):
+    """Backward compatibility endpoint for punctuation addition"""
+    return await add_punctuation_endpoint(request)
+
+
