@@ -8,7 +8,7 @@
 
 1. **克隆项目**
 ```bash
-git clone <repository-url>
+git clone https://github.com/LinSoap/whoAsr.git
 cd whoAsr
 ```
 
@@ -143,11 +143,7 @@ whoAsr/
 └── README.md              # 项目文档
 ```
 
-### 架构特点
-- **模块化设计**: 每个功能模块独立路由，便于维护和扩展
-- **SPA 集成**: 前端构建后由 FastAPI 统一托管
-- **类型安全**: 前端使用 TypeScript，后端使用 Pydantic 模型
-- **简洁高效**: 移除了冗余的向后兼容端点，使用统一的模块化 API
+
 
 ## 🔌 API 端点
 
