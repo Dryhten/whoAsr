@@ -7,6 +7,7 @@ import { ModelManagementCard } from "@/components/ModelManagementCard";
 import { TimestampAPI, TimestampResponse, TimestampSegment } from "../../api";
 import { ErrorIcon, SpinnerIcon, CheckIcon, TrashIcon, InfoIcon, CopyIcon, UploadIcon } from "@/components/icons";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { formatFileSize } from "@/lib/format";
 
 export function Timestamp() {
   useDocumentTitle("时间戳预测");
@@ -100,8 +101,9 @@ export function Timestamp() {
       } else {
         throw new Error(response.message || "时间戳预测失败");
       }
-    } catch (err: any) {
-      setError("预测失败: " + err.message);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "未知错误";
+      setError("预测失败: " + errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -120,14 +122,7 @@ export function Timestamp() {
     if (textInput) textInput.value = "";
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-  };
-
+  
   const getTotalDuration = () => {
     if (results.length === 0) return 0;
     return Math.max(...results.map(r => r.end));

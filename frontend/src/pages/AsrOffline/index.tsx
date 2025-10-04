@@ -7,6 +7,8 @@ import { ModelManagementCard } from "@/components/ModelManagementCard";
 import { RecognitionAPI } from "@/api";
 import { ErrorIcon, SpinnerIcon, CheckIcon, TrashIcon, InfoIcon, CopyIcon, UploadIcon, PencilIcon } from "@/components/icons";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { formatFileSize } from "@/lib/format";
+import { spacing } from "@/lib/spacing";
 
 export function AsrOffline() {
   useDocumentTitle("离线语音识别");
@@ -45,10 +47,16 @@ export function AsrOffline() {
 
       if (response.success && response.results) {
         // Format results for display
-        const formattedResults = response.results.map((item: any) => {
+        const formattedResults = response.results.map((item: {
+          text?: string;
+          timestamp?: number[][];
+          confidence?: number;
+          speaker?: string;
+          [key: string]: unknown;
+        } | string) => {
           if (typeof item === 'string') {
             return item;
-          } else if (item.text) {
+          } else if (item && typeof item === 'object' && 'text' in item) {
             return item.text;
           }
           return JSON.stringify(item);
@@ -78,19 +86,12 @@ export function AsrOffline() {
     }
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-  };
-
+  
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
+    <div className={spacing.page}>
+      <div className={spacing.container}>
         {/* Header Section */}
-        <div className="text-center mb-8">
+        <div className={`text-center ${spacing.header}`}>
           <h1 className="text-3xl font-bold text-foreground mb-2">
             ASR - 离线语音识别
           </h1>
@@ -100,7 +101,7 @@ export function AsrOffline() {
         </div>
 
         {/* Status Cards */}
-        <div className="grid grid-cols-3 gap-6 mb-8">
+        <div className={`grid grid-cols-3 ${spacing.gap.lg} ${spacing.margin.lg}`}>
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -153,9 +154,9 @@ export function AsrOffline() {
           </Card>
         </div>
 
-        <div className="grid grid-cols-3 gap-6">
+        <div className={spacing.layouts.sidebar}>
           {/* Main Content */}
-          <div className="col-span-2 space-y-6">
+          <div className={`col-span-2 space-y-6`}>
             {/* Error Alert */}
             {error && (
               <Alert variant="destructive">
@@ -204,8 +205,8 @@ export function AsrOffline() {
                   </div>
 
                   {/* Hotword Input */}
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
+                  <div className={spacing.form.field}>
+                    <label className={`block text-sm font-medium ${spacing.form.label}`}>
                       热词 (可选)
                     </label>
                     <input
@@ -213,11 +214,11 @@ export function AsrOffline() {
                       value={hotword}
                       onChange={(e) => setHotword(e.currentTarget.value)}
                       placeholder="输入热词以提高识别准确率"
-                      className="w-full p-3 border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                      className={`w-full ${spacing.form.input} border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent`}
                     />
                   </div>
 
-                  <div className="flex gap-4">
+                  <div className={spacing.gap.xl}>
                     <Button
                       onClick={handleUpload}
                       disabled={isLoading || !selectedFile}
