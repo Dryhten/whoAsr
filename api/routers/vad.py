@@ -3,11 +3,12 @@
 import os
 import tempfile
 import uuid
+import base64
 from typing import List, Optional
 import numpy as np
 import soundfile as sf
 import json
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from ..core.model import get_vad_model, is_vad_model_loaded
@@ -16,6 +17,7 @@ from ..core.schemas import ProcessingResponse
 from ..core.file_utils import cleanup_temp_files
 from ..core.model_utils import process_model_request
 from ..core.config import logger
+from ..core.audio import decode_audio_chunk
 
 # Temporary directory for file uploads
 TEMP_DIR = tempfile.gettempdir()
@@ -186,33 +188,6 @@ class VADConnectionManager:
 vad_manager = VADConnectionManager()
 
 
-def decode_audio_chunk(audio_data: str) -> np.ndarray:
-    """Decode base64 audio chunk to numpy array"""
-    try:
-        # Try to decode as float32 first
-        audio_bytes = base64.b64decode(audio_data)
-        audio_array = np.frombuffer(audio_bytes, dtype=np.float32)
-        return audio_array
-    except:
-        try:
-            # Try int16
-            audio_bytes = base64.b64decode(audio_data)
-            audio_array = (
-                np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32) / 32768.0
-            )
-            return audio_array
-        except:
-            try:
-                # Try int32
-                audio_bytes = base64.b64decode(audio_data)
-                audio_array = (
-                    np.frombuffer(audio_bytes, dtype=np.int32).astype(np.float32)
-                    / 2147483648.0
-                )
-                return audio_array
-            except:
-                logger.error("Failed to decode audio chunk")
-                return np.array([], dtype=np.float32)
 
 
 @router.websocket("/ws/{client_id}")

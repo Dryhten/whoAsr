@@ -34,13 +34,16 @@ def validate_audio_file(filename: str) -> None:
             detail=f"Unsupported audio format. Supported formats: {', '.join(SUPPORTED_AUDIO_FORMATS)}",
         )
 
-def save_upload_file(upload_file: UploadFile, file_id: str) -> Path:
+def save_upload_file(upload_file: UploadFile, file_id: str, content: bytes = None) -> Path:
     """保存上传的文件到临时目录"""
     try:
         file_path = get_temp_path(file_id, upload_file.filename)
         with open(file_path, "wb") as buffer:
-            content = upload_file.file.read()
-            buffer.write(content)
+            if content is not None:
+                buffer.write(content)
+            else:
+                content = upload_file.file.read()
+                buffer.write(content)
         return file_path
     except Exception as e:
         logger.error(f"Error saving file {upload_file.filename}: {e}")

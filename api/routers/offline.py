@@ -3,12 +3,12 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import Optional, List
-import tempfile
-import os
-from pathlib import Path
 from ..core.model import get_offline_model, run_offline_recognition
 from ..core.models import ModelType
 from ..core.config import logger
+from ..core.file_utils import (
+    generate_unique_id, save_upload_file, cleanup_temp_file, validate_audio_file
+)
 
 # Create router instance
 router = APIRouter(prefix="/offline", tags=["offline"])
@@ -38,35 +38,22 @@ async def recognize_audio_file(
     """Upload and perform offline recognition on audio file"""
     temp_file_path = None
     try:
-        # Check file type
-        allowed_types = [
-            "audio/wav",
-            "audio/mp3",
-            "audio/mpeg",
-            "audio/m4a",
-            "audio/flac",
-            "audio/ogg",
-        ]
-        if file.content_type not in allowed_types:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unsupported file type. Allowed types: {', '.join(allowed_types)}",
-            )
+        # Validate file format
+        validate_audio_file(file.filename)
 
-        # Create temporary file
-        temp_dir = tempfile.mkdtemp()
-        temp_file_path = os.path.join(temp_dir, f"upload_{file.filename}")
-
-        # Save uploaded file
+        # Read file content first to get size
         content = await file.read()
-        with open(temp_file_path, "wb") as buffer:
-            buffer.write(content)
+        file_size = len(content)
 
-        logger.info(f"File uploaded successfully: {file.filename} -> {temp_file_path}")
+        # Generate unique ID and save file
+        file_id = generate_unique_id()
+        temp_file_path = save_upload_file(file, file_id, content)
 
-        # Perform recognition using the core function
+        logger.info(f"File uploaded: {file.filename} -> {temp_file_path}")
+
+        # Perform recognition
         results = run_offline_recognition(
-            file_path=temp_file_path,
+            file_path=str(temp_file_path),
             batch_size_s=batch_size_s,
             batch_size_threshold_s=batch_size_threshold_s,
             hotword=hotword,
@@ -76,38 +63,20 @@ async def recognize_audio_file(
             success=True,
             results=results,
             file_name=file.filename,
-            file_size=len(content),
+            file_size=file_size,
             message="Recognition completed successfully",
         )
 
     except HTTPException:
-        # Clean up temporary file if it exists
-        if temp_file_path and os.path.exists(temp_file_path):
-            try:
-                os.unlink(temp_file_path)
-                # Remove temp directory if empty
-                temp_dir = os.path.dirname(temp_file_path)
-                if os.path.exists(temp_dir) and not os.listdir(temp_dir):
-                    os.rmdir(temp_dir)
-            except Exception:
-                pass
         raise
     except Exception as e:
         logger.error(f"Error during offline recognition: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to recognize audio: {str(e)}")
+    finally:
+        # Clean up temporary file
+        if temp_file_path:
+            cleanup_temp_file(temp_file_path)
 
-        # Clean up temporary file if it exists
-        if temp_file_path and os.path.exists(temp_file_path):
-            try:
-                os.unlink(temp_file_path)
-                # Remove temp directory if empty
-                temp_dir = os.path.dirname(temp_file_path)
-                if os.path.exists(temp_dir) and not os.listdir(temp_dir):
-                    os.rmdir(temp_dir)
-            except Exception:
-                pass
 
-        raise HTTPException(
-            status_code=500, detail=f"Failed to recognize audio: {str(e)}"
-        )
 
 
