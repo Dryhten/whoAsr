@@ -156,66 +156,12 @@ app.include_router(punctuation_router)
 # Register VAD routes
 app.include_router(vad_router)
 
-# Backward compatibility endpoint - redirects to /offline/recognize
-@app.post("/recognize", include_in_schema=False)
-async def recognize_speech_compatibility(
-    file: UploadFile = File(...),
-    batch_size_s: Optional[int] = Form(300),
-    batch_size_threshold_s: Optional[int] = Form(60),
-    hotword: Optional[str] = Form(None),
-):
-    """Backward compatibility endpoint for speech recognition (redirects to /offline/recognize)"""
-    from api.routers.offline import recognize_audio_file
-    return await recognize_audio_file(file, batch_size_s, batch_size_threshold_s, hotword)
 
 
-# Backward compatibility endpoint for punctuation
-@app.post("/punctuate", include_in_schema=False)
-async def punctuate_compatibility(
-    text: str = Body(..., embed=True)
-):
-    """Backward compatibility endpoint for punctuation (redirects to /punctuation/add)"""
-    from api.core.model import add_punctuation
-    from api.core.config import logger
-    from fastapi import HTTPException
-
-    try:
-        # Add punctuation using the core function
-        punctuated_text = add_punctuation(text)
-
-        return {
-            "original_text": text,
-            "punctuated_text": punctuated_text,
-            "success": True,
-            "message": "Punctuation added successfully"
-        }
-    except Exception as e:
-        logger.error(f"Error adding punctuation: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to add punctuation: {str(e)}")
 
 
-# Backward compatibility endpoint for VAD
-@app.post("/vad", include_in_schema=False)
-async def vad_compatibility(
-    file: UploadFile = File(...)
-):
-    """Backward compatibility endpoint for VAD (redirects to /vad/detect)"""
-    from api.routers.vad import detect_voice_activity
-
-    return await detect_voice_activity(file)
 
 
-# Backward compatibility endpoint for timestamp
-@app.post("/timestamp", include_in_schema=False)
-async def timestamp_compatibility(
-    audio_file: UploadFile = File(...),
-    text_file: Optional[UploadFile] = File(None),
-    text_content: Optional[str] = Form(None)
-):
-    """Backward compatibility endpoint for timestamp (redirects to /timestamp/predict)"""
-    from api.routers.timestamp import predict_timestamps
-
-    return await predict_timestamps(audio_file, text_file, text_content)
 
 # Frontend routes (must be last to catch all non-API routes)
 @app.get("/")

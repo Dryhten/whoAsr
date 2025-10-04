@@ -783,11 +783,11 @@ export class VADWebSocket {
                 let wsUrl: string;
                 if (window.location.hostname === 'localhost' && window.location.port === '5173') {
                     // Development environment - connect directly to backend
-                    wsUrl = `ws://localhost:8000/vad/ws/${this.clientId}`;
+                    wsUrl = `ws://localhost:8000/ws/${this.clientId}`;
                 } else {
                     // Production environment - use relative path
                     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                    wsUrl = `${wsProtocol}//${window.location.host}/vad/ws/${this.clientId}`;
+                    wsUrl = `${wsProtocol}//${window.location.host}/ws/${this.clientId}`;
                 }
 
                 console.log('Connecting VAD WebSocket to:', wsUrl);

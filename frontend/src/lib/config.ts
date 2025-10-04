@@ -17,11 +17,15 @@ export const API_ENDPOINTS = {
   // 健康检查
   HEALTH: '/health',
 
-  // 简化的功能接口
-  RECOGNIZE: '/recognize',        // 离线语音识别
-  PUNCTUATE: '/punctuate',        // 标点符号添加
-  VAD: '/vad',                   // 语音活动检测
-  TIMESTAMP: '/timestamp',       // 时间戳预测
+  // 功能接口 (使用模块化路由)
+  RECOGNIZE: '/offline/recognize',  // 离线语音识别
+  PUNCTUATE: '/punctuation/add',    // 标点符号添加
+  VAD: '/vad/detect',               // 语音活动检测
+  TIMESTAMP: '/timestamp/predict',  // 时间戳预测
+
+  // WebSocket 实时识别
+  WEBSOCKET: (clientId: string) => `/ws/${clientId}`,
+  WEBSOCKET_VAD: (clientId: string) => `/ws/${clientId}`,  // 复用同一个WebSocket端点
 } as const;
 
 // 通用API请求配置
