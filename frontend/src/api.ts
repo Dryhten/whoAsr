@@ -5,46 +5,54 @@
 
 import { API_BASE_URL, API_ENDPOINTS } from '@/lib/config';
 
-// WebSocket 消息类型
-export interface WebSocketMessage {
+// WebSocket 基础消息类型
+export interface BaseWebSocketMessage {
     type: string;
-    [key: string]: any;
 }
 
 // 开始录制消息
-export interface StartRecordingMessage extends WebSocketMessage {
+export interface StartRecordingMessage extends BaseWebSocketMessage {
     type: 'start_recording';
 }
 
 // 停止录制消息
-export interface StopRecordingMessage extends WebSocketMessage {
+export interface StopRecordingMessage extends BaseWebSocketMessage {
     type: 'stop_recording';
 }
 
 // 音频块消息
-export interface AudioChunkMessage extends WebSocketMessage {
+export interface AudioChunkMessage extends BaseWebSocketMessage {
     type: 'audio_chunk';
     data: string;
 }
 
 // 语音识别结果消息
-export interface RecognitionResultMessage extends WebSocketMessage {
+export interface RecognitionResultMessage extends BaseWebSocketMessage {
     type: 'recognition_result';
     text: string;
     is_final: boolean;
 }
 
 // 状态消息
-export interface StatusMessage extends WebSocketMessage {
+export interface StatusMessage extends BaseWebSocketMessage {
     type: 'status';
     message: string;
 }
 
 // 错误消息
-export interface ErrorMessage extends WebSocketMessage {
+export interface ErrorMessage extends BaseWebSocketMessage {
     type: 'error';
     message: string;
 }
+
+// 联合类型表示所有可能的WebSocket消息
+export type WebSocketMessage =
+    | StartRecordingMessage
+    | StopRecordingMessage
+    | AudioChunkMessage
+    | RecognitionResultMessage
+    | StatusMessage
+    | ErrorMessage;
 
 // 标点添加请求
 export interface PunctuationRequest {
@@ -89,6 +97,16 @@ export interface HealthCheckResponse {
     };
 }
 
+// 模型配置接口
+export interface ModelConfig {
+    sample_rate?: number;
+    chunk_size?: number[];
+    encoder_chunk_look_back?: number;
+    decoder_chunk_look_back?: number;
+    batch_size_threshold?: number;
+    [key: string]: unknown;
+}
+
 // 模型信息响应
 export interface ModelInfoResponse {
     models: {
@@ -98,7 +116,7 @@ export interface ModelInfoResponse {
             description: string;
             model_name?: string;
             auto_load?: boolean;
-            config?: any;
+            config?: ModelConfig;
         };
     };
     total_loaded: number;
@@ -110,7 +128,7 @@ export interface ModelInfoResponse {
             auto_load: boolean;
             dependencies: string[];
             loaded: boolean;
-            config: any;
+            config: ModelConfig;
         };
     };
 }
@@ -274,7 +292,7 @@ export class SpeechApi {
     }
 
     // 加载模型
-    async loadModel(modelType: string): Promise<any> {
+    async loadModel(modelType: string): Promise<{ success: boolean; message: string }> {
         try {
             const response = await fetch(`${this.baseUrl}${API_ENDPOINTS.MODEL_LOAD}`, {
                 method: 'POST',
@@ -296,7 +314,7 @@ export class SpeechApi {
     }
 
     // 卸载模型
-    async unloadModel(modelType: string): Promise<any> {
+    async unloadModel(modelType: string): Promise<{ success: boolean; message: string }> {
         try {
             const response = await fetch(`${this.baseUrl}${API_ENDPOINTS.MODEL_UNLOAD(modelType)}`, {
                 method: 'POST',
@@ -621,8 +639,8 @@ export function generateClientId(): string {
 }
 
 // 工具函数：验证WebSocket消息
-export function isValidWebSocketMessage(message: any): message is WebSocketMessage {
-    return message && typeof message === 'object' && typeof message.type === 'string';
+export function isValidWebSocketMessage(message: unknown): message is WebSocketMessage {
+    return message !== null && typeof message === 'object' && 'type' in message && typeof message.type === 'string';
 }
 
 // 工具函数：检查是否为识别结果消息
@@ -671,7 +689,13 @@ export interface RecognitionRequest {
 
 export interface RecognitionResponse {
     success: boolean;
-    results?: any[];
+    results?: Array<{
+        text?: string;
+        timestamp?: number[][];
+        confidence?: number;
+        speaker?: string;
+        [key: string]: unknown;
+    }>;
     file_name?: string;
     file_size?: number;
     message?: string;
