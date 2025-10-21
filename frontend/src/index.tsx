@@ -5,6 +5,7 @@ import { Header } from "./components/Header";
 import { Home } from "./pages/Home/index";
 import { Asr } from "./pages/Asr/index";
 import { AsrOffline } from "./pages/AsrOffline/index";
+import { InspectAsr } from "./pages/InspectAsr/index";
 import { Punctuation } from "./pages/Punctuation/index";
 import { Vad } from "./pages/Vad/index";
 import { Timestamp } from "./pages/Timestamp/index";
@@ -20,6 +21,7 @@ export function App() {
           <Route path="/" component={Home} />
           <Route path="/asr" component={Asr} />
           <Route path="/asr-offline" component={AsrOffline} />
+          <Route path="/inspect-asr" component={InspectAsr} />
           <Route path="/punctuation" component={Punctuation} />
           <Route path="/vad" component={Vad} />
           <Route path="/timestamp" component={Timestamp} />

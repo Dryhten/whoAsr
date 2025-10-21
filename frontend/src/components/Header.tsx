@@ -7,6 +7,7 @@ export function Header() {
     { href: "/", label: "首页" },
     { href: "/asr", label: "实时转换" },
     { href: "/asr-offline", label: "离线转换" },
+    { href: "/inspect-asr", label: "实时巡检" },
     { href: "/punctuation", label: "标点添加" },
     { href: "/vad", label: "语音活动检测" },
     { href: "/timestamp", label: "时间戳预测" },

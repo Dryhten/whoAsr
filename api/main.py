@@ -11,6 +11,8 @@ import os
 from api.core.model import get_loaded_models_status
 from api.core.config import logger
 from api.routers.websocket import websocket_endpoint
+from api.routers.inspect_websocket import inspect_websocket_endpoint
+from api.core.inspect_connection import inspect_manager
 from api.routers.model import router as model_router
 from api.routers.offline import router as offline_router
 from api.routers.punctuation import router as punctuation_router
@@ -142,6 +144,17 @@ if os.path.exists(frontend_path):
 
 # Register WebSocket routes
 app.websocket("/ws/{client_id}")(websocket_endpoint)
+app.websocket("/inspect/ws/{client_id}")(inspect_websocket_endpoint)
+
+# Inspect monitoring endpoints
+@app.get("/inspect/connections")
+async def get_inspect_connections():
+    """Get list of active inspect connections"""
+    return {
+        "success": True,
+        "connections": inspect_manager.get_active_connections(),
+        "total": len(inspect_manager.get_active_connections())
+    }
 
 
 
@@ -181,6 +194,10 @@ async def read_root():
 @app.get("/{full_path:path}")
 async def catch_all_frontend_routes(full_path: str):
     """Catch-all route for frontend SPA routes"""
+    # 排除API路由
+    if full_path.startswith(("api/", "docs", "openapi.json", "health", "model/", "offline/", "punctuation/", "vad/", "timestamp/", "inspect/")):
+        return {"error": "Not found"}
+    
     frontend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
     index_path = os.path.join(frontend_path, "index.html")
 

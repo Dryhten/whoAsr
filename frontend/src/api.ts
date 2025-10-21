@@ -677,6 +677,45 @@ export function checkAudioSupport(): { supported: boolean; error?: string } {
     return { supported: true };
 }
 
+// ============ Inspect Monitoring API ============
+
+// Inspect Connection Types
+export interface InspectConnection {
+    client_id: string;
+    inspect_id: string;
+    is_recording: boolean;
+    is_connected: boolean;
+}
+
+export interface InspectConnectionsResponse {
+    success: boolean;
+    connections: InspectConnection[];
+    total: number;
+}
+
+// Inspect Monitoring API class
+export class InspectMonitoringAPI {
+    private baseUrl: string;
+
+    constructor(baseUrl: string = API_BASE_URL) {
+        this.baseUrl = baseUrl;
+    }
+
+    // 获取活跃的巡检连接列表
+    async getActiveConnections(): Promise<InspectConnectionsResponse> {
+        try {
+            const response = await fetch(`${this.baseUrl}${API_ENDPOINTS.INSPECT_CONNECTIONS}`);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('获取巡检连接列表失败:', error);
+            throw error;
+        }
+    }
+}
+
 // ============ Offline Speech Recognition API ============
 
 // Offline Recognition Types
@@ -917,6 +956,128 @@ export class VADAPI {
         } else {
             return `${seconds}.${milliseconds.toString().padStart(3, '0')}s`;
         }
+    }
+}
+
+// ============ Inspect WebSocket API ============
+
+// Inspect WebSocket Types
+export interface InspectWebSocketMessage {
+    type: string;
+    text?: string;
+    is_final?: boolean;
+    inspect_id?: string;
+    client_id?: string;
+    message?: string;
+}
+
+// Inspect WebSocket class
+export class InspectWebSocket {
+    private ws: WebSocket | null = null;
+    private clientId: string;
+    private inspectId: string;
+    private url: string;
+    private onMessage: ((message: InspectWebSocketMessage) => void) | null = null;
+    private onOpen: (() => void) | null = null;
+    private onClose: (() => void) | null = null;
+    private onError: ((error: Event) => void) | null = null;
+
+    constructor(clientId: string, inspectId: string, baseUrl: string = API_BASE_URL) {
+        this.clientId = clientId;
+        this.inspectId = inspectId;
+        this.url = `${baseUrl.replace('http', 'ws')}/inspect/ws/${clientId}?inspect_id=${inspectId}`;
+    }
+
+    connect() {
+        try {
+            this.ws = new WebSocket(this.url);
+
+            this.ws.onopen = () => {
+                console.log('Inspect WebSocket 连接已建立');
+                this.onOpen?.();
+            };
+
+            this.ws.onmessage = (event) => {
+                try {
+                    const message: InspectWebSocketMessage = JSON.parse(event.data);
+                    this.onMessage?.(message);
+                } catch (error) {
+                    console.error('解析 Inspect WebSocket 消息失败:', error);
+                }
+            };
+
+            this.ws.onclose = () => {
+                console.log('Inspect WebSocket 连接已关闭');
+                this.onClose?.();
+            };
+
+            this.ws.onerror = (error) => {
+                console.error('Inspect WebSocket 错误:', error);
+                this.onError?.(error);
+            };
+        } catch (error) {
+            console.error('创建 Inspect WebSocket 连接失败:', error);
+            throw error;
+        }
+    }
+
+    disconnect() {
+        if (this.ws) {
+            this.ws.close();
+            this.ws = null;
+        }
+    }
+
+    sendMessage(message: any) {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify(message));
+        } else {
+            console.error('Inspect WebSocket 未连接，无法发送消息');
+        }
+    }
+
+    startRecording() {
+        this.sendMessage({ type: 'start_recording' });
+    }
+
+    stopRecording() {
+        this.sendMessage({ type: 'stop_recording' });
+    }
+
+    sendAudioChunk(audioData: string) {
+        this.sendMessage({
+            type: 'audio_chunk',
+            data: audioData
+        });
+    }
+
+    // 事件监听器设置
+    onMessageReceived(callback: (message: InspectWebSocketMessage) => void) {
+        this.onMessage = callback;
+    }
+
+    onConnectionOpen(callback: () => void) {
+        this.onOpen = callback;
+    }
+
+    onConnectionClose(callback: () => void) {
+        this.onClose = callback;
+    }
+
+    onConnectionError(callback: (error: Event) => void) {
+        this.onError = callback;
+    }
+
+    isConnected(): boolean {
+        return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
+    }
+
+    getInspectId(): string {
+        return this.inspectId;
+    }
+
+    getClientId(): string {
+        return this.clientId;
     }
 }
 

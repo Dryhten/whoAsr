@@ -26,6 +26,10 @@ export const API_ENDPOINTS = {
   // WebSocket 实时识别
   WEBSOCKET: (clientId: string) => `/ws/${clientId}`,
   WEBSOCKET_VAD: (clientId: string) => `/ws/${clientId}`,  // 复用同一个WebSocket端点
+  WEBSOCKET_INSPECT: (clientId: string, inspectId: string) => `/inspect/ws/${clientId}?inspect_id=${inspectId}`,
+  
+  // 巡检监控接口
+  INSPECT_CONNECTIONS: '/inspect/connections',
 } as const;
 
 // 通用API请求配置

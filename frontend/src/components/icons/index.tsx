@@ -43,3 +43,4 @@ export { PlayIcon } from "./PlayIcon";
 export { StopIcon } from "./StopIcon";
 export { UploadIcon } from "./UploadIcon";
 export { PencilIcon } from "./PencilIcon";
+export { RefreshIcon } from "./RefreshIcon";

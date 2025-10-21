@@ -58,6 +58,11 @@ export function Home() {
       href: "/asr",
     },
     {
+      title: "实时巡检语音",
+      description: "带巡检ID的实时语音识别",
+      href: "/inspect-asr",
+    },
+    {
       title: "离线识别",
       description: "上传音频文件进行识别",
       href: "/asr-offline",
