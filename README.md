@@ -26,6 +26,7 @@ cd ..
 3. **启动开发服务**
 ```bash
 # 启动后端服务 (终端 1)
+# 注意: 服务启动时会自动加载实时语音识别模型
 uv run python -m api.main
 
 # 启动前端开发服务 (终端 2)
@@ -37,6 +38,9 @@ npm run dev
 - 前端开发界面: http://localhost:5173
 - 后端 API 文档: http://localhost:8000/docs
 - 健康检查: http://localhost:8000/health
+
+> 💡 **新特性**: 服务启动后会自动加载实时语音识别模型，无需手动加载即可使用！  
+> 详见: [模型自动加载快速指南](docs/QUICK_START_AUTO_LOAD.md)
 
 ### Docker 部署
 
@@ -102,6 +106,12 @@ PORT=8000
 ENVIRONMENT=production
 
 # 模型配置
+# AUTO_LOAD_MODELS: 是否启用自动加载模型功能 (默认: false)
+# PRELOAD_MODELS: 启动时预加载的模型列表，逗号分隔 (默认: 无)
+# 可用模型: streaming_asr, offline_asr, punctuation, vad, timestamp
+# 
+# 注意: 如果 AUTO_LOAD_MODELS=false 或未设置 PRELOAD_MODELS，
+# 系统会默认自动加载 streaming_asr (实时语音识别模型)
 AUTO_LOAD_MODELS=false
 PRELOAD_MODELS=streaming_asr,punctuation
 

@@ -8,8 +8,10 @@ from fastapi import UploadFile, File, Form, Body
 from typing import Optional
 from contextlib import asynccontextmanager
 import os
-from api.core.model import get_loaded_models_status
+from api.core.model import get_loaded_models_status, load_model_by_type
 from api.core.config import logger
+from api.core.models import ModelType
+from api.core.settings import settings
 from api.routers.websocket import websocket_endpoint
 from api.routers.inspect_websocket import inspect_websocket_endpoint
 from api.core.inspect_connection import inspect_manager
@@ -20,13 +22,41 @@ from api.routers.vad import router as vad_router
 from api.routers.timestamp import router as timestamp_router
 
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # noqa: ARG001
     """Initialize the application on startup and cleanup on shutdown"""
     try:
-        logger.info("Application startup completed successfully - no models loaded by default")
-        logger.info("Use /model management endpoints to load specific models")
+        logger.info("Application starting up...")
+
+        # 自动加载模型
+        if settings.auto_load_models and settings.preload_models_list:
+            logger.info(f"Auto-loading models: {', '.join(settings.preload_models_list)}")
+            for model_name in settings.preload_models_list:
+                try:
+                    model_type = ModelType(model_name)
+                    logger.info(f"Loading model: {model_type.value}")
+                    success = load_model_by_type(model_type)
+                    if success:
+                        logger.info(f"Successfully loaded model: {model_type.value}")
+                    else:
+                        logger.warning(f"Failed to load model: {model_type.value}")
+                except ValueError:
+                    logger.warning(f"Invalid model type: {model_name}")
+                except Exception as e:
+                    logger.error(f"Error loading model {model_name}: {e}")
+        else:
+            # 默认加载实时语音识别模型
+            logger.info("Auto-loading streaming ASR model by default...")
+            try:
+                success = load_model_by_type(ModelType.STREAMING_ASR)
+                if success:
+                    logger.info("Successfully loaded streaming ASR model")
+                else:
+                    logger.warning("Failed to load streaming ASR model")
+            except Exception as e:
+                logger.error(f"Error loading streaming ASR model: {e}")
+
+        logger.info("Application startup completed successfully")
         yield
     except Exception as e:
         logger.error(f"Failed to initialize application: {e}")
@@ -37,9 +67,7 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
 
 
 # Initialize FastAPI app with lifespan
-app = FastAPI(
-    title="Real-time Speech Recognition API", version="1.0.0", lifespan=lifespan
-)
+app = FastAPI(title="Real-time Speech Recognition API", version="1.0.0", lifespan=lifespan)
 
 # Add CORS middleware
 app.add_middleware(
@@ -85,6 +113,7 @@ async def health_check():
         config = None
         try:
             from api.core.models import get_model_config, ModelType
+
             config = get_model_config(ModelType(model_type))
         except:
             pass
@@ -108,8 +137,8 @@ async def health_check():
             "version": "1.0.0",
             "title": "Real-time Speech Recognition API",
             "docs": "/docs",
-            "websocket": "/ws/{client_id}"
-        }
+            "websocket": "/ws/{client_id}",
+        },
     }
 
 
@@ -120,7 +149,7 @@ def _get_supported_formats(model_type: str) -> list:
         "offline_asr": ["wav", "mp3", "mpeg", "m4a", "flac", "ogg"],
         "punctuation": ["text/plain"],
         "vad": ["wav", "mp3", "m4a", "flac", "ogg"],
-        "timestamp": ["wav", "mp3", "m4a", "flac", "ogg"]
+        "timestamp": ["wav", "mp3", "m4a", "flac", "ogg"],
     }
     return format_map.get(model_type, [])
 
@@ -132,7 +161,7 @@ def _get_api_endpoints(model_type: str) -> list:
         "offline_asr": ["GET /health", "POST /model/load", "POST /recognize"],
         "punctuation": ["GET /health", "POST /model/load", "POST /punctuate"],
         "vad": ["GET /health", "POST /model/load", "POST /vad", "WS /vad/ws/{client_id}"],
-        "timestamp": ["GET /health", "POST /model/load", "POST /timestamp"]
+        "timestamp": ["GET /health", "POST /model/load", "POST /timestamp"],
     }
     return endpoint_map.get(model_type, [])
 
@@ -146,6 +175,7 @@ if os.path.exists(frontend_path):
 app.websocket("/ws/{client_id}")(websocket_endpoint)
 app.websocket("/inspect/ws/{client_id}")(inspect_websocket_endpoint)
 
+
 # Inspect monitoring endpoints
 @app.get("/inspect/connections")
 async def get_inspect_connections():
@@ -153,9 +183,8 @@ async def get_inspect_connections():
     return {
         "success": True,
         "connections": inspect_manager.get_active_connections(),
-        "total": len(inspect_manager.get_active_connections())
+        "total": len(inspect_manager.get_active_connections()),
     }
-
 
 
 # Register model management routes (keep as it has multiple related endpoints)
@@ -170,12 +199,6 @@ app.include_router(punctuation_router)
 app.include_router(vad_router)
 
 
-
-
-
-
-
-
 # Frontend routes (must be last to catch all non-API routes)
 @app.get("/")
 async def read_root():
@@ -187,7 +210,7 @@ async def read_root():
         "message": "FunASR Speech Recognition API",
         "docs": "/docs",
         "health": "/health",
-        "note": "Frontend not found. Build the frontend with 'npm run build' in the frontend directory."
+        "note": "Frontend not found. Build the frontend with 'npm run build' in the frontend directory.",
     }
 
 
@@ -195,19 +218,33 @@ async def read_root():
 async def catch_all_frontend_routes(full_path: str):
     """Catch-all route for frontend SPA routes"""
     # 排除API路由
-    if full_path.startswith(("api/", "docs", "openapi.json", "health", "model/", "offline/", "punctuation/", "vad/", "timestamp/", "inspect/")):
+    if full_path.startswith(
+        (
+            "api/",
+            "docs",
+            "openapi.json",
+            "health",
+            "model/",
+            "offline/",
+            "punctuation/",
+            "vad/",
+            "timestamp/",
+            "inspect/",
+        )
+    ):
         return {"error": "Not found"}
-    
+
     frontend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
     index_path = os.path.join(frontend_path, "index.html")
 
     # If frontend is built, serve index.html for all non-API routes
     if os.path.exists(index_path):
         # Check if this looks like an API route
-        api_prefixes = ['/ws', '/docs', '/model', '/offline', '/punctuation', '/vad', '/timestamp', '/recognize']
+        api_prefixes = ["/ws", "/docs", "/model", "/offline", "/punctuation", "/vad", "/timestamp", "/recognize"]
         if any(full_path.startswith(prefix) for prefix in api_prefixes):
             # Let FastAPI return 404 for unknown API routes
             from fastapi import HTTPException
+
             raise HTTPException(status_code=404, detail="API endpoint not found")
 
         # For all other routes, serve the frontend index.html
@@ -218,14 +255,8 @@ async def catch_all_frontend_routes(full_path: str):
         "message": "FunASR Speech Recognition API",
         "docs": "/docs",
         "health": "/health",
-        "note": "Frontend not found. Build the frontend with 'npm run build' in the frontend directory."
+        "note": "Frontend not found. Build the frontend with 'npm run build' in the frontend directory.",
     }
-
-
-
-
-
-
 
 
 if __name__ == "__main__":

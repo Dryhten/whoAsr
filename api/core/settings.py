@@ -10,48 +10,59 @@ class Settings(BaseSettings):
     """应用配置"""
 
     # 服务器配置
-    host: str = os.getenv("HOST", "0.0.0.0")
-    port: int = int(os.getenv("PORT", "8000"))
+    host: str = "0.0.0.0"
+    port: int = 8000
 
     # 前端配置
-    frontend_url: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
-    dev_frontend_url: str = os.getenv("DEV_FRONTEND_URL", "http://localhost:5173")
+    frontend_url: str = "http://localhost:3000"
+    dev_frontend_url: str = "http://localhost:5173"
 
     # 模型配置
-    model_cache_dir: str = os.getenv("MODEL_CACHE_DIR", "/app/models/cache")
-    auto_load_models: bool = os.getenv("AUTO_LOAD_MODELS", "false").lower() == "true"
-    preload_models: List[str] = os.getenv("PRELOAD_MODELS", "").split(",") if os.getenv("PRELOAD_MODELS") else []
+    model_cache_dir: str = "/app/models/cache"
+    auto_load_models: bool = False
+    preload_models: str = ""  # 逗号分隔的模型列表
+
+    @property
+    def preload_models_list(self) -> List[str]:
+        """将逗号分隔的字符串转换为列表"""
+        if not self.preload_models:
+            return []
+        return [m.strip() for m in self.preload_models.split(",") if m.strip()]
 
     # 文件上传配置
-    max_upload_size: int = int(os.getenv("MAX_UPLOAD_SIZE", "100"))  # MB
-    temp_dir: str = os.getenv("TEMP_DIR", "/tmp/whoasr")
-    file_retention_hours: int = int(os.getenv("FILE_RETENTION_HOURS", "24"))
+    max_upload_size: int = 100  # MB
+    temp_dir: str = "/tmp/whoasr"
+    file_retention_hours: int = 24
 
     # 安全配置
-    jwt_secret: Optional[str] = os.getenv("JWT_SECRET")
-    api_key: Optional[str] = os.getenv("API_KEY")
+    jwt_secret: Optional[str] = None
+    api_key: Optional[str] = None
 
     # 日志配置
-    log_level: str = os.getenv("LOG_LEVEL", "INFO")
-    log_file: Optional[str] = os.getenv("LOG_FILE")
-    access_log: bool = os.getenv("ACCESS_LOG", "true").lower() == "true"
+    log_level: str = "INFO"
+    log_file: Optional[str] = None
+    access_log: bool = True
 
     # 性能配置
-    websocket_timeout: int = int(os.getenv("WEBSOCKET_TIMEOUT", "300"))
-    max_connections: int = int(os.getenv("MAX_CONNECTIONS", "1000"))
-    request_timeout: int = int(os.getenv("REQUEST_TIMEOUT", "60"))
+    websocket_timeout: int = 300
+    max_connections: int = 1000
+    request_timeout: int = 60
 
     # 监控配置
-    enable_metrics: bool = os.getenv("ENABLE_METRICS", "true").lower() == "true"
-    metrics_port: int = int(os.getenv("METRICS_PORT", "9090"))
+    enable_metrics: bool = True
+    metrics_port: int = 9090
 
     # Redis配置 (可选)
-    redis_url: Optional[str] = os.getenv("REDIS_URL")
-    redis_password: Optional[str] = os.getenv("REDIS_PASSWORD")
+    redis_url: Optional[str] = None
+    redis_password: Optional[str] = None
 
     # 环境标识
-    environment: str = os.getenv("ENVIRONMENT", "production")
-    debug: bool = environment == "development"
+    environment: str = "production"
+
+    @property
+    def debug(self) -> bool:
+        """是否为调试模式"""
+        return self.environment == "development"
 
     class Config:
         env_file = ".env"

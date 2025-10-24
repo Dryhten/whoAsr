@@ -17,4 +17,5 @@ dependencies = [
     "websockets",
     "psutil",
     "python-multipart",
+    "pydantic-settings",
 ]

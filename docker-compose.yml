@@ -6,6 +6,11 @@ services:
       - "8000:8000"
     environment:
       - ENVIRONMENT=production
+      # 模型自动加载配置
+      # 默认情况下会自动加载 streaming_asr 模型
+      # 如需自定义，取消下面的注释并修改配置
+      # - AUTO_LOAD_MODELS=true
+      # - PRELOAD_MODELS=streaming_asr,punctuation,vad
     volumes:
       - whoasr-models:/app/models/cache
       - ./.env:/app/.env:ro
