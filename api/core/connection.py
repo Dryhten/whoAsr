@@ -11,10 +11,10 @@ from .audio import decode_audio_chunk, process_audio_chunk, process_final_audio
 from .model import get_model
 from .models import ModelType
 
-# 缓冲区超时时间(秒) - 1秒内没有新数据则自动处理缓冲区
-BUFFER_TIMEOUT = 1.0
-# 最小处理阈值 (200ms = 3200样本) - 缓冲区至少要有这么多数据才处理
-MIN_BUFFER_SIZE = 3200
+# 缓冲区超时时间(秒) - 0.5秒内没有新数据则自动处理缓冲区
+BUFFER_TIMEOUT = 0.5
+# 最小处理阈值 (50ms = 800样本) - 缓冲区至少要有这么多数据才处理
+MIN_BUFFER_SIZE = 800
 
 
 class ConnectionManager:
@@ -151,11 +151,11 @@ class ConnectionManager:
                 )
 
         # 启动新的超时任务 (如果缓冲区还有数据且正在录音)
-        if state["is_recording"] and len(state["audio_buffer"]) >= MIN_BUFFER_SIZE:
+        if state["is_recording"] and len(state["audio_buffer"]) > 0:
             self.timeout_tasks[client_id] = asyncio.create_task(self._buffer_timeout_handler(client_id))
 
     async def _buffer_timeout_handler(self, client_id: str):
-        """处理缓冲区超时 - 1秒内没有新数据则自动处理缓冲区"""
+        """处理缓冲区超时 - 0.5秒内没有新数据则自动处理缓冲区"""
         try:
             await asyncio.sleep(BUFFER_TIMEOUT)
 
@@ -163,12 +163,12 @@ class ConnectionManager:
             if not state or not state["is_recording"]:
                 return
 
-            # 检查是否真的超时了 (1秒内没有新数据)
+            # 检查是否真的超时了 (0.5秒内没有新数据)
             time_since_last_audio = time.time() - state["last_audio_time"]
             if time_since_last_audio >= BUFFER_TIMEOUT:
                 buffer_len = len(state["audio_buffer"])
-                # 如果缓冲区有数据且达到最小处理阈值
-                if buffer_len >= MIN_BUFFER_SIZE:
+                # 如果缓冲区有任何数据就处理
+                if buffer_len > 0:
                     logger.info(f"Client {client_id}: Buffer timeout triggered, processing {buffer_len} samples")
 
                     try:
