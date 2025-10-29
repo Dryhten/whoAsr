@@ -6,14 +6,10 @@ from typing import Optional, List
 from ..core.model import get_offline_model, run_offline_recognition
 from ..core.models import ModelType
 from ..core.config import logger
-from ..core.file_utils import (
-    generate_unique_id, save_upload_file, cleanup_temp_file, validate_audio_file
-)
+from ..core.file_utils import generate_unique_id, save_upload_file, cleanup_temp_file, validate_audio_file
 
 # Create router instance
-router = APIRouter(prefix="/offline", tags=["offline"])
-
-
+router = APIRouter(prefix="/asr/offline", tags=["offline"])
 
 
 class OfflineRecognitionResponse(BaseModel):
@@ -24,8 +20,6 @@ class OfflineRecognitionResponse(BaseModel):
     message: Optional[str] = None
     file_name: Optional[str] = None
     file_size: Optional[int] = None
-
-
 
 
 @router.post("/recognize", response_model=OfflineRecognitionResponse)
@@ -76,7 +70,3 @@ async def recognize_audio_file(
         # Clean up temporary file
         if temp_file_path:
             cleanup_temp_file(temp_file_path)
-
-
-
-

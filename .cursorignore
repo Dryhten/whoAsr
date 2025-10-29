@@ -1,0 +1,95 @@
+# Cursor ignore file for whoAsr project
+# This file tells Cursor which files and directories to ignore
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# Node.js (for frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+frontend/dist/
+frontend/build/
+
+# Docker
+.dockerignore
+
+# Git
+.git/
+
+# Model files (large files)
+*.bin
+*.model
+*.pth
+*.ckpt
+*.safetensors
+
+# Audio files (optional - uncomment if you want to ignore them)
+# *.wav
+# *.mp3
+# *.flac
+# *.ogg
+# *.m4a
+
+# Jieba cache (we want to keep this for performance)
+# tmp/jieba_cache/
+
+# Keep .env files - DO NOT ignore them
+!.env
+!.env.*

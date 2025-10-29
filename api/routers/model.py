@@ -13,16 +13,18 @@ from ..core.models import ModelType, get_model_config
 from ..core.config import logger
 
 # Create router instance
-router = APIRouter(prefix="/model", tags=["model"])
+router = APIRouter(prefix="/asr/model", tags=["model"])
 
 
 class ModelLoadRequest(BaseModel):
     """Request model for model loading"""
+
     model_type: ModelType
 
 
 class ModelLoadResponse(BaseModel):
     """Response model for model loading"""
+
     success: bool
     model_type: str
     message: str
@@ -31,6 +33,7 @@ class ModelLoadResponse(BaseModel):
 
 class ModelUnloadResponse(BaseModel):
     """Response model for model unloading"""
+
     success: bool
     model_type: str
     message: str
@@ -39,6 +42,7 @@ class ModelUnloadResponse(BaseModel):
 
 class ModelInfoResponse(BaseModel):
     """Response model for model information"""
+
     models: Dict[str, Dict[str, Any]]
     total_loaded: int
     available_models: Dict[str, Dict[str, Any]]
@@ -52,10 +56,7 @@ async def load_model(request: ModelLoadRequest):
         config = get_model_config(model_type)
 
         if not config:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid model type: {model_type.value}"
-            )
+            raise HTTPException(status_code=400, detail=f"Invalid model type: {model_type.value}")
 
         # Check if already loaded
         if is_model_loaded_by_type(model_type):
@@ -63,7 +64,7 @@ async def load_model(request: ModelLoadRequest):
                 success=True,
                 model_type=model_type.value,
                 message=f"{config.display_name} is already loaded",
-                loaded=True
+                loaded=True,
             )
 
         # Load the model
@@ -74,24 +75,21 @@ async def load_model(request: ModelLoadRequest):
                 success=True,
                 model_type=model_type.value,
                 message=f"{config.display_name} loaded successfully",
-                loaded=True
+                loaded=True,
             )
         else:
             return ModelLoadResponse(
                 success=False,
                 model_type=model_type.value,
                 message=f"Failed to load {config.display_name}",
-                loaded=False
+                loaded=False,
             )
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error loading model {request.model_type.value}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to load model: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to load model: {str(e)}")
 
 
 @router.post("/unload/{model_type}", response_model=ModelUnloadResponse)
@@ -104,8 +102,7 @@ async def unload_model(model_type: str):
         except ValueError:
             available_types = [t.value for t in ModelType]
             raise HTTPException(
-                status_code=400,
-                detail=f"Invalid model type: {model_type}. Available types: {available_types}"
+                status_code=400, detail=f"Invalid model type: {model_type}. Available types: {available_types}"
             )
 
         config = get_model_config(model_enum)
@@ -114,10 +111,7 @@ async def unload_model(model_type: str):
         if not is_model_loaded_by_type(model_enum):
             display_name = config.display_name if config else model_type
             return ModelUnloadResponse(
-                success=True,
-                model_type=model_type,
-                message=f"{display_name} is not loaded",
-                loaded=False
+                success=True, model_type=model_type, message=f"{display_name} is not loaded", loaded=False
             )
 
         # Unload the model
@@ -126,27 +120,21 @@ async def unload_model(model_type: str):
 
         if success:
             return ModelUnloadResponse(
-                success=True,
-                model_type=model_type,
-                message=f"{display_name} unloaded successfully",
-                loaded=False
+                success=True, model_type=model_type, message=f"{display_name} unloaded successfully", loaded=False
             )
         else:
             return ModelUnloadResponse(
                 success=False,
                 model_type=model_type,
                 message=f"Failed to unload {display_name}",
-                loaded=is_model_loaded_by_type(model_enum)
+                loaded=is_model_loaded_by_type(model_enum),
             )
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error unloading model {model_type}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to unload model: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to unload model: {str(e)}")
 
 
 @router.get("/info", response_model=ModelInfoResponse)
@@ -173,20 +161,11 @@ async def get_model_info():
                 "config": config.config if config else {},
             }
 
-        return ModelInfoResponse(
-            models=models_status,
-            total_loaded=total_loaded,
-            available_models=available_models
-        )
+        return ModelInfoResponse(models=models_status, total_loaded=total_loaded, available_models=available_models)
 
     except Exception as e:
         logger.error(f"Error getting model info: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get model info: {str(e)}"
-        )
-
-
+        raise HTTPException(status_code=500, detail=f"Failed to get model info: {str(e)}")
 
 
 @router.get("/config/{model_type}")
@@ -199,16 +178,12 @@ async def get_model_type_config(model_type: str):
         except ValueError:
             available_types = [t.value for t in ModelType]
             raise HTTPException(
-                status_code=400,
-                detail=f"Invalid model type: {model_type}. Available types: {available_types}"
+                status_code=400, detail=f"Invalid model type: {model_type}. Available types: {available_types}"
             )
 
         config = get_model_config(model_enum)
         if not config:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Configuration not found for model type: {model_type}"
-            )
+            raise HTTPException(status_code=404, detail=f"Configuration not found for model type: {model_type}")
 
         return {
             "model_type": model_type,
@@ -218,14 +193,11 @@ async def get_model_type_config(model_type: str):
             "auto_load": config.auto_load,
             "dependencies": config.dependencies,
             "config": config.config,
-            "loaded": is_model_loaded_by_type(model_enum)
+            "loaded": is_model_loaded_by_type(model_enum),
         }
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error getting model config {model_type}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get model config: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to get model config: {str(e)}")

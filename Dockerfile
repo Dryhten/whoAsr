@@ -53,7 +53,8 @@ USER app
 COPY --from=frontend-builder --chown=app:app /app/frontend/dist ./frontend/dist
 
 # 创建必要的目录
-RUN mkdir -p /app/models/cache /app/logs /tmp/whoasr
+RUN mkdir -p /app/models/cache /app/logs /app/tmp/whoasr /app/tmp/jieba_cache && \
+    chmod 755 /app/tmp/jieba_cache
 
 # 暴露端口
 EXPOSE 8000

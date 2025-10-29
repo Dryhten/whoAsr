@@ -14,15 +14,15 @@ from pydantic import BaseModel
 from ..core.model import get_vad_model, is_vad_model_loaded
 from ..core.models import ModelType, get_model_config
 from ..core.schemas import ProcessingResponse
-from ..core.file_utils import cleanup_temp_files
+from ..core.file_utils import cleanup_temp_files, get_temp_dir
 from ..core.model_utils import process_model_request
 from ..core.config import logger
 from ..core.audio import decode_audio_chunk
 
 # Temporary directory for file uploads
-TEMP_DIR = tempfile.gettempdir()
+TEMP_DIR = get_temp_dir()
 
-router = APIRouter(prefix="/vad", tags=["VAD"])
+router = APIRouter(prefix="/asr/vad", tags=["VAD"])
 
 
 class VADResponse(BaseModel):
@@ -35,6 +35,7 @@ class VADResponse(BaseModel):
 
 class VADStreamSegment(BaseModel):
     """WebSocket message for VAD streaming segment"""
+
     type: str = "vad_segment"
     segments: List[List[int]]
     is_final: bool = False
@@ -51,14 +52,10 @@ def extract_vad_results(model_output: List) -> List[List[int]]:
             start_time = int(item[0]) if item[0] is not None else 0
             end_time = int(item[1]) if item[1] is not None else 0
             results.append([start_time, end_time])
-        elif isinstance(item, dict) and 'start' in item and 'end' in item:
-            results.append([int(item['start']), int(item['end'])])
+        elif isinstance(item, dict) and "start" in item and "end" in item:
+            results.append([int(item["start"]), int(item["end"])])
 
     return results
-
-
-
-
 
 
 @router.post("/detect", response_model=VADResponse)
@@ -188,8 +185,6 @@ class VADConnectionManager:
 vad_manager = VADConnectionManager()
 
 
-
-
 @router.websocket("/ws/{client_id}")
 async def websocket_vad_endpoint(websocket: WebSocket, client_id: str):
     """WebSocket endpoint for real-time VAD"""
@@ -204,9 +199,7 @@ async def websocket_vad_endpoint(websocket: WebSocket, client_id: str):
         config = get_model_config(ModelType.VAD)
         chunk_size_ms = config.config.get("chunk_size", 200)
         sample_rate = config.config.get("sample_rate", 16000)
-        chunk_stride = int(
-            chunk_size_ms * sample_rate / 1000
-        )  # 3200 samples for 200ms at 16kHz
+        chunk_stride = int(chunk_size_ms * sample_rate / 1000)  # 3200 samples for 200ms at 16kHz
 
         while True:
             # Receive message
@@ -221,9 +214,7 @@ async def websocket_vad_endpoint(websocket: WebSocket, client_id: str):
                     state["segment_buffer"] = []
                     state["audio_buffer"] = np.array([], dtype=np.float32)
 
-                await vad_manager.send_message(
-                    client_id, {"type": "status", "message": "VAD started"}
-                )
+                await vad_manager.send_message(client_id, {"type": "status", "message": "VAD started"})
 
             elif message.get("type") == "stop_vad":
                 # Process final audio
@@ -246,9 +237,7 @@ async def websocket_vad_endpoint(websocket: WebSocket, client_id: str):
                         elif isinstance(first_result, list):
                             final_segments = first_result
                         else:
-                            logger.warning(
-                                f"Unexpected VAD output format: {type(first_result)}"
-                            )
+                            logger.warning(f"Unexpected VAD output format: {type(first_result)}")
 
                     if final_segments and len(final_segments) > 0:
                         await vad_manager.send_message(
@@ -260,9 +249,7 @@ async def websocket_vad_endpoint(websocket: WebSocket, client_id: str):
                             },
                         )
 
-                await vad_manager.send_message(
-                    client_id, {"type": "status", "message": "VAD stopped"}
-                )
+                await vad_manager.send_message(client_id, {"type": "status", "message": "VAD stopped"})
 
             elif message.get("type") == "audio_chunk":
                 # Process audio chunk
@@ -287,9 +274,7 @@ async def websocket_vad_endpoint(websocket: WebSocket, client_id: str):
 
                     try:
                         # Process VAD with simplified parameters for real-time detection
-                        model_output = model.generate(
-                            input=speech_chunk, is_final=False, chunk_size=chunk_size_ms
-                        )
+                        model_output = model.generate(input=speech_chunk, is_final=False, chunk_size=chunk_size_ms)
 
                         # Extract segments from FunASR VAD output format
                         segments = []
@@ -299,9 +284,7 @@ async def websocket_vad_endpoint(websocket: WebSocket, client_id: str):
                         # Check if segments contain valid VAD results
                         if segments and len(segments) > 0:
                             # Filter out empty segments and ensure valid data
-                            valid_segments = [
-                                seg for seg in segments if seg and len(seg) > 0
-                            ]
+                            valid_segments = [seg for seg in segments if seg and len(seg) > 0]
                             if valid_segments:
                                 await vad_manager.send_message(
                                     client_id,
@@ -311,14 +294,10 @@ async def websocket_vad_endpoint(websocket: WebSocket, client_id: str):
                                         "is_final": False,
                                     },
                                 )
-                                logger.info(
-                                    f"VAD client {client_id}: detected {len(valid_segments)} segments"
-                                )
+                                logger.info(f"VAD client {client_id}: detected {len(valid_segments)} segments")
 
                     except Exception as e:
-                        logger.error(
-                            f"Error processing VAD for client {client_id}: {e}"
-                        )
+                        logger.error(f"Error processing VAD for client {client_id}: {e}")
                         await vad_manager.send_message(
                             client_id,
                             {

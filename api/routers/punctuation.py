@@ -8,7 +8,7 @@ from ..core.models import ModelType
 from ..core.config import logger
 
 # Create router instance
-router = APIRouter(prefix="/punctuation", tags=["punctuation"])
+router = APIRouter(prefix="/asr/punctuation", tags=["punctuation"])
 
 
 class PunctuationRequest(BaseModel):
@@ -42,10 +42,4 @@ async def add_punctuation_endpoint(request: PunctuationRequest):
 
     except Exception as e:
         logger.error(f"Error adding punctuation: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to add punctuation: {str(e)}"
-        )
-
-
-
-
+        raise HTTPException(status_code=500, detail=f"Failed to add punctuation: {str(e)}")

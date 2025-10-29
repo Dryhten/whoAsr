@@ -31,8 +31,11 @@ class Settings(BaseSettings):
 
     # 文件上传配置
     max_upload_size: int = 100  # MB
-    temp_dir: str = "/tmp/whoasr"
+    temp_dir: str = "./tmp/whoasr"
     file_retention_hours: int = 24
+
+    # jieba 缓存配置
+    jieba_cache_dir: str = "./tmp/jieba_cache"
 
     # 安全配置
     jwt_secret: Optional[str] = None

@@ -4,14 +4,16 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import UploadFile, File, Form, Body
+from fastapi import UploadFile, File, Form, Body, Request
 from typing import Optional
 from contextlib import asynccontextmanager
 import os
+import logging
 from api.core.model import get_loaded_models_status, load_model_by_type
 from api.core.config import logger
 from api.core.models import ModelType
 from api.core.settings import settings
+from api.core.jieba_init import initialize_jieba, get_jieba_cache_info
 from api.routers.websocket import websocket_endpoint
 from api.routers.inspect_websocket import inspect_websocket_endpoint
 from api.core.inspect_connection import inspect_manager
@@ -27,6 +29,11 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
     """Initialize the application on startup and cleanup on shutdown"""
     try:
         logger.info("Application starting up...")
+
+        # 初始化 jieba 分词库
+        logger.info("Initializing jieba...")
+        initialize_jieba()
+        logger.info("Jieba initialization completed")
 
         # 自动加载模型
         if settings.auto_load_models and settings.preload_models_list:
@@ -79,6 +86,16 @@ app.add_middleware(
 )
 
 
+# Add request logging middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log all incoming requests"""
+    logger.info(f"Request: {request.method} {request.url}")
+    response = await call_next(request)
+    logger.info(f"Response: {response.status_code}")
+    return response
+
+
 @app.get("/health")
 async def health_check():
     """Enhanced health check endpoint with detailed service information"""
@@ -127,17 +144,21 @@ async def health_check():
             "api_endpoints": _get_api_endpoints(model_type),
         }
 
+    # Get jieba cache information
+    jieba_info = get_jieba_cache_info()
+
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "services": services,
         "total_loaded": total_loaded,
         "system": system_info,
+        "jieba_cache": jieba_info,
         "api_info": {
             "version": "1.0.0",
             "title": "Real-time Speech Recognition API",
             "docs": "/docs",
-            "websocket": "/ws/{client_id}",
+            "websocket": "/asr/ws/{client_id}",
         },
     }
 
@@ -157,11 +178,11 @@ def _get_supported_formats(model_type: str) -> list:
 def _get_api_endpoints(model_type: str) -> list:
     """Get available API endpoints for a model type"""
     endpoint_map = {
-        "streaming_asr": ["GET /health", "POST /model/load", "WS /ws/{client_id}"],
-        "offline_asr": ["GET /health", "POST /model/load", "POST /recognize"],
-        "punctuation": ["GET /health", "POST /model/load", "POST /punctuate"],
-        "vad": ["GET /health", "POST /model/load", "POST /vad", "WS /vad/ws/{client_id}"],
-        "timestamp": ["GET /health", "POST /model/load", "POST /timestamp"],
+        "streaming_asr": ["GET /health", "POST /asr/model/load", "WS /asr/ws/{client_id}"],
+        "offline_asr": ["GET /health", "POST /asr/model/load", "POST /asr/offline/recognize"],
+        "punctuation": ["GET /health", "POST /asr/model/load", "POST /asr/punctuation/add"],
+        "vad": ["GET /health", "POST /asr/model/load", "POST /asr/vad/detect", "WS /asr/vad/ws/{client_id}"],
+        "timestamp": ["GET /health", "POST /asr/model/load", "POST /asr/timestamp/predict"],
     }
     return endpoint_map.get(model_type, [])
 
@@ -172,12 +193,12 @@ if os.path.exists(frontend_path):
     app.mount("/assets", StaticFiles(directory=os.path.join(frontend_path, "assets")), name="assets")
 
 # Register WebSocket routes
-app.websocket("/ws/{client_id}")(websocket_endpoint)
-app.websocket("/inspect/ws/{client_id}")(inspect_websocket_endpoint)
+app.websocket("/asr/ws/{client_id}")(websocket_endpoint)
+app.websocket("/asr/inspect/ws/{client_id}")(inspect_websocket_endpoint)
 
 
 # Inspect monitoring endpoints
-@app.get("/inspect/connections")
+@app.get("/asr/inspect/connections")
 async def get_inspect_connections():
     """Get list of active inspect connections"""
     return {
@@ -185,6 +206,31 @@ async def get_inspect_connections():
         "connections": inspect_manager.get_active_connections(),
         "total": len(inspect_manager.get_active_connections()),
     }
+
+
+# Common web requests handling
+@app.get("/favicon.ico")
+async def favicon():
+    """Handle favicon requests"""
+    return {"message": "No favicon available"}
+
+
+@app.get("/robots.txt")
+async def robots():
+    """Handle robots.txt requests"""
+    return {"message": "No robots.txt available"}
+
+
+@app.get("/apple-touch-icon.png")
+async def apple_touch_icon():
+    """Handle Apple touch icon requests"""
+    return {"message": "No Apple touch icon available"}
+
+
+@app.get("/sitemap.xml")
+async def sitemap():
+    """Handle sitemap requests"""
+    return {"message": "No sitemap available"}
 
 
 # Register model management routes (keep as it has multiple related endpoints)
@@ -224,6 +270,7 @@ async def catch_all_frontend_routes(full_path: str):
             "docs",
             "openapi.json",
             "health",
+            "asr/",
             "model/",
             "offline/",
             "punctuation/",
@@ -240,7 +287,17 @@ async def catch_all_frontend_routes(full_path: str):
     # If frontend is built, serve index.html for all non-API routes
     if os.path.exists(index_path):
         # Check if this looks like an API route
-        api_prefixes = ["/ws", "/docs", "/model", "/offline", "/punctuation", "/vad", "/timestamp", "/recognize"]
+        api_prefixes = [
+            "/asr",
+            "/ws",
+            "/docs",
+            "/model",
+            "/offline",
+            "/punctuation",
+            "/vad",
+            "/timestamp",
+            "/recognize",
+        ]
         if any(full_path.startswith(prefix) for prefix in api_prefixes):
             # Let FastAPI return 404 for unknown API routes
             from fastapi import HTTPException

@@ -7,26 +7,24 @@ from pydantic import BaseModel
 from ..core.model import get_timestamp_model, is_timestamp_model_loaded
 from ..core.schemas import UploadResponse, ProcessingResponse
 from ..core.file_utils import (
-    generate_unique_id, validate_audio_file, save_upload_file,
-    save_text_file, cleanup_temp_files, validate_file_exists
+    generate_unique_id,
+    validate_audio_file,
+    save_upload_file,
+    save_text_file,
+    cleanup_temp_files,
+    validate_file_exists,
 )
 from ..core.model_utils import process_model_request
 from ..core.config import logger
 
-router = APIRouter(prefix="/timestamp", tags=["Timestamp"])
-
-
-
-
-
-
+router = APIRouter(prefix="/asr/timestamp", tags=["Timestamp"])
 
 
 @router.post("/predict", response_model=ProcessingResponse)
 async def predict_timestamps(
     audio_file: UploadFile = File(...),
     text_file: Optional[UploadFile] = File(None),
-    text_content: Optional[str] = Form(None)
+    text_content: Optional[str] = Form(None),
 ):
     """Upload audio and text files to predict timestamps"""
     validate_audio_file(audio_file.filename)
@@ -54,16 +52,12 @@ async def predict_timestamps(
             model_getter=get_timestamp_model,
             model_checker=is_timestamp_model_loaded,
             model_name="Timestamp",
-            request=temp_request
+            request=temp_request,
         )
 
         cleanup_temp_files(str(audio_file_path), str(text_file_path) if text_file_path else None)
 
-        return ProcessingResponse(
-            success=True,
-            message="Timestamp prediction completed successfully",
-            results=results
-        )
+        return ProcessingResponse(success=True, message="Timestamp prediction completed successfully", results=results)
     except Exception as e:
         cleanup_temp_files(str(audio_file_path), str(text_file_path) if text_file_path else None)
         raise

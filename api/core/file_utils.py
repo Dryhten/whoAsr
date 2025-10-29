@@ -12,19 +12,39 @@ import soundfile as sf
 import numpy as np
 from fastapi import UploadFile, HTTPException
 from .config import logger
+from .settings import get_settings
+
 
 # 临时目录配置
-TEMP_DIR = Path(tempfile.gettempdir())
+def get_temp_dir() -> Path:
+    """获取临时目录路径"""
+    settings = get_settings()
+    temp_dir = settings.temp_dir
+
+    # 处理相对路径
+    if not os.path.isabs(temp_dir):
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        temp_dir = os.path.join(project_root, temp_dir)
+
+    temp_path = Path(temp_dir)
+    temp_path.mkdir(parents=True, exist_ok=True)
+    return temp_path
+
+
+TEMP_DIR = get_temp_dir()
 SUPPORTED_AUDIO_FORMATS = {".wav", ".mp3", ".m4a", ".flac", ".ogg"}
+
 
 def generate_unique_id() -> str:
     """生成唯一ID"""
     return str(uuid.uuid4())
 
+
 def get_temp_path(file_id: str, filename: str) -> Path:
     """获取临时文件路径"""
     extension = Path(filename).suffix
     return TEMP_DIR / f"{file_id}{extension}"
+
 
 def validate_audio_file(filename: str) -> None:
     """验证音频文件格式"""
@@ -33,6 +53,7 @@ def validate_audio_file(filename: str) -> None:
             status_code=400,
             detail=f"Unsupported audio format. Supported formats: {', '.join(SUPPORTED_AUDIO_FORMATS)}",
         )
+
 
 def save_upload_file(upload_file: UploadFile, file_id: str, content: bytes = None) -> Path:
     """保存上传的文件到临时目录"""
@@ -49,6 +70,7 @@ def save_upload_file(upload_file: UploadFile, file_id: str, content: bytes = Non
         logger.error(f"Error saving file {upload_file.filename}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
 
+
 def cleanup_temp_file(file_path: Path) -> None:
     """清理临时文件"""
     try:
@@ -57,10 +79,12 @@ def cleanup_temp_file(file_path: Path) -> None:
     except Exception as e:
         logger.warning(f"Failed to cleanup temp file {file_path}: {e}")
 
+
 def validate_file_exists(file_path: str) -> None:
     """验证文件是否存在"""
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
+
 
 def read_text_file(file_path: str) -> str:
     """读取文本文件内容"""
@@ -70,6 +94,7 @@ def read_text_file(file_path: str) -> str:
     except Exception as e:
         logger.error(f"Error reading text file {file_path}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to read text file: {str(e)}")
+
 
 def save_text_file(content: str, file_id: str) -> Path:
     """保存文本内容到临时文件"""
@@ -82,10 +107,12 @@ def save_text_file(content: str, file_id: str) -> Path:
         logger.error(f"Error saving text file: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to save text file: {str(e)}")
 
+
 def cleanup_temp_files(*file_paths: Path) -> None:
     """清理多个临时文件"""
     for file_path in file_paths:
         cleanup_temp_file(file_path)
+
 
 class AudioFileValidator:
     """音频文件验证器"""
