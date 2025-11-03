@@ -217,8 +217,8 @@ class InspectConnectionManager:
                             logger.error("Streaming ASR model not loaded")
                             return
 
-                        # 处理缓冲区中的所有数据
-                        result_text = process_audio_chunk(model, state["audio_buffer"], state["cache"], CHUNK_SIZE)
+                        # 处理缓冲区中的所有数据，使用 is_final=True 确保最后一个词不被截断
+                        result_text = process_audio_chunk(model, state["audio_buffer"], state["cache"], CHUNK_SIZE, is_final=True)
 
                         # 清空缓冲区
                         state["audio_buffer"] = np.array([], dtype=DTYPE)
@@ -227,7 +227,7 @@ class InspectConnectionManager:
                             message = {
                                 "type": "recognition_result",
                                 "text": result_text,
-                                "is_final": False,
+                                "is_final": True,
                                 "inspect_id": state.get("inspect_id"),
                                 "client_id": client_id,
                             }

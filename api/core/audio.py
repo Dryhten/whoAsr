@@ -68,7 +68,7 @@ def decode_audio_chunk(audio_data: str) -> np.ndarray:
         return np.array([], dtype=DTYPE)
 
 
-def process_audio_chunk(model, audio_chunk: np.ndarray, cache: dict, chunk_size: list):
+def process_audio_chunk(model, audio_chunk: np.ndarray, cache: dict, chunk_size: list, is_final: bool = False):
     """Process audio chunk with FunASR model"""
     try:
         # Ensure speech_chunk is a numpy array
@@ -83,7 +83,7 @@ def process_audio_chunk(model, audio_chunk: np.ndarray, cache: dict, chunk_size:
         res = model.generate(
             input=audio_chunk,
             cache=cache,
-            is_final=False,  # Always False for streaming
+            is_final=is_final,
             chunk_size=chunk_size,
             encoder_chunk_look_back=ENCODER_CHUNK_LOOK_BACK,
             decoder_chunk_look_back=DECODER_CHUNK_LOOK_BACK,
