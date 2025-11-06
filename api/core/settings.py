@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     model_cache_dir: str = "/app/models/cache"
     auto_load_models: bool = False
     preload_models: str = ""  # 逗号分隔的模型列表
+    # GPU配置: "cpu" 或 "cuda" 或 "cuda:0" (指定GPU编号)
+    device: str = "cpu"
 
     @property
     def preload_models_list(self) -> List[str]:

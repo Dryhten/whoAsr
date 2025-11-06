@@ -30,6 +30,24 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
     try:
         logger.info("Application starting up...")
 
+        # 检测并输出硬件设备信息
+        from api.core.config import detect_device_info, format_device_info
+        device_info = detect_device_info()
+        device_str = format_device_info(device_info)
+        
+        # 使用print确保输出可见（不依赖日志级别）
+        print(f"\n{'='*60}")
+        print(f"Hardware Device: {device_str}")
+        if device_info["device_type"] == "GPU":
+            print(f"  - CUDA Available: {device_info['cuda_available']}")
+            print(f"  - CUDA Version: {device_info['cuda_version']}")
+            print(f"  - GPU Count: {device_info['gpu_count']}")
+            if device_info["gpu_names"]:
+                for i, gpu_name in enumerate(device_info["gpu_names"]):
+                    print(f"  - GPU {i}: {gpu_name}")
+        print(f"Configured Device: {settings.device}")
+        print(f"{'='*60}\n")
+
         # 初始化 jieba 分词库
         logger.info("Initializing jieba...")
         initialize_jieba()

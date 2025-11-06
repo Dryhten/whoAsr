@@ -7,9 +7,6 @@ requires-python = ">=3.12"
 dependencies = [
     "funasr==1.2.7",
     "modelscope==1.30.0",
-    "torch==2.8.0",
-    "torchaudio==2.8.0",
-    "torchvision==0.23.0",
     "pyaudio",
     "numpy",
     "fastapi",

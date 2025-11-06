@@ -115,9 +115,74 @@ ENVIRONMENT=production
 AUTO_LOAD_MODELS=false
 PRELOAD_MODELS=streaming_asr,punctuation
 
+# GPU配置
+# DEVICE: 运行设备，可选值: "cpu", "cuda", "cuda:0" (指定GPU编号)
+# 使用GPU可以显著提升识别速度，但需要安装CUDA和GPU版本的PyTorch
+# 如果系统没有GPU或未安装CUDA，请设置为 "cpu"
+DEVICE=cpu
+
 # 日志级别
 LOG_LEVEL=INFO
 ```
+
+## 🚀 GPU 加速配置
+
+### 启用 GPU 支持
+
+项目支持使用 GPU 加速语音识别，可以显著提升识别速度。
+
+#### 1. 配置设备
+
+在 `.env` 文件中设置 `DEVICE` 参数：
+
+```bash
+# 使用 GPU (默认使用第一个GPU)
+DEVICE=cuda
+
+# 或指定特定GPU编号
+DEVICE=cuda:0
+
+# 使用 CPU (默认)
+DEVICE=cpu
+```
+
+#### 2. 安装 GPU 依赖
+
+**本地开发环境：**
+
+```bash
+# 首先安装CUDA版本的PyTorch (根据你的CUDA版本选择)
+# CUDA 11.8
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
+# CUDA 12.1
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# 然后安装项目依赖
+uv sync
+```
+
+**Docker 环境：**
+
+如果使用 Docker，需要：
+1. 使用支持 GPU 的基础镜像（如 `nvidia/cuda`）
+2. 安装 `nvidia-docker` 运行时
+3. 在 `docker-compose.yml` 中配置 GPU 支持
+
+#### 3. 验证 GPU 可用性
+
+启动服务后，检查日志中是否显示模型加载在 GPU 上：
+
+```
+Loading Streaming ASR (paraformer-zh-streaming) on device: cuda...
+```
+
+#### 4. 性能对比
+
+- **CPU**: 适合开发和小规模使用，识别速度较慢
+- **GPU**: 适合生产环境，识别速度可提升 3-10 倍（取决于GPU型号）
+
+> 💡 **提示**: 如果系统没有 GPU 或 CUDA 未正确安装，系统会自动回退到 CPU 模式，不会报错。
 
 ## 📁 项目结构
 

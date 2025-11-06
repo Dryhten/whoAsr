@@ -3,6 +3,7 @@
 from funasr import AutoModel
 from .config import logger
 from .models import ModelType, get_model_config
+from .settings import settings
 
 # Global model instances
 model_instances = {
@@ -27,15 +28,20 @@ def load_model_by_type(model_type: ModelType) -> bool:
         logger.error(f"No configuration found for model type: {model_type.value}")
         return False
 
-    logger.info(f"Loading {config.display_name} ({config.model_name})...")
+    device = settings.device
+    logger.info(f"Loading {config.display_name} ({config.model_name}) on device: {device}...")
 
     try:
         if model_type == ModelType.STREAMING_ASR:
-            model_instances[model_type] = AutoModel(model=config.model_name)
+            model_instances[model_type] = AutoModel(
+                model=config.model_name,
+                device=device
+            )
 
         elif model_type == ModelType.OFFLINE_ASR:
             model_instances[model_type] = AutoModel(
                 model=config.model_name,
+                device=device,
                 vad_model=config.config.get("vad_model"),
                 vad_kwargs=config.config.get("vad_kwargs"),
                 punc_model=config.config.get("punc_model"),
@@ -43,13 +49,22 @@ def load_model_by_type(model_type: ModelType) -> bool:
             )
 
         elif model_type == ModelType.PUNCTUATION:
-            model_instances[model_type] = AutoModel(model=config.model_name)
+            model_instances[model_type] = AutoModel(
+                model=config.model_name,
+                device=device
+            )
 
         elif model_type == ModelType.VAD:
-            model_instances[model_type] = AutoModel(model=config.model_name)
+            model_instances[model_type] = AutoModel(
+                model=config.model_name,
+                device=device
+            )
 
         elif model_type == ModelType.TIMESTAMP:
-            model_instances[model_type] = AutoModel(model=config.model_name)
+            model_instances[model_type] = AutoModel(
+                model=config.model_name,
+                device=device
+            )
 
         else:
             logger.error(f"Unsupported model type: {model_type.value}")
