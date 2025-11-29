@@ -7,7 +7,6 @@ requires-python = ">=3.12"
 dependencies = [
     "funasr==1.2.7",
     "modelscope==1.30.0",
-    "pyaudio",
     "numpy",
     "fastapi",
     "uvicorn[standard]",
@@ -16,3 +15,7 @@ dependencies = [
     "python-multipart",
     "pydantic-settings",
 ]
+
+[[tool.uv.index]]
+name = "tsinghua"
+url = "https://pypi.tuna.tsinghua.edu.cn/simple/"
