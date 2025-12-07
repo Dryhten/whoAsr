@@ -738,7 +738,7 @@ export class RecognitionAPI {
         const validExtensions = ['.wav', '.mp3', '.m4a', '.flac', '.ogg'];
 
         return validTypes.includes(file.type) ||
-               validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+            validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
     }
 }
 
@@ -779,16 +779,9 @@ export class VADWebSocket {
     connect(): Promise<void> {
         return new Promise((resolve, reject) => {
             try {
-                // In development, use direct connection to backend; in production use relative path
-                let wsUrl: string;
-                if (window.location.hostname === 'localhost' && window.location.port === '5173') {
-                    // Development environment - connect directly to backend
-                    wsUrl = `ws://localhost:8000/ws/${this.clientId}`;
-                } else {
-                    // Production environment - use relative path
-                    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                    wsUrl = `${wsProtocol}//${window.location.host}/ws/${this.clientId}`;
-                }
+                // Use API_BASE_URL to construct WebSocket URL
+                const wsBaseUrl = API_BASE_URL.replace(/^http/, 'ws');
+                const wsUrl = `${wsBaseUrl}/ws/${this.clientId}`;
 
                 console.log('Connecting VAD WebSocket to:', wsUrl);
                 this.ws = new WebSocket(wsUrl);
@@ -1031,7 +1024,7 @@ export class TimestampAPI {
         const validExtensions = ['.txt', '.text', '.md', '.json', '.html', '.css', '.js'];
 
         return validTypes.includes(file.type) ||
-               validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+            validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
     }
 
     static validateAudioFile(file: File): boolean {
@@ -1039,7 +1032,7 @@ export class TimestampAPI {
         const validExtensions = ['.wav', '.mp3', '.m4a', '.flac', '.ogg'];
 
         return validTypes.includes(file.type) ||
-               validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+            validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
     }
 
     static readFileAsText(file: File): Promise<string> {

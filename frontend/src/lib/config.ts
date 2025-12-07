@@ -4,7 +4,22 @@
  */
 
 // API 基础配置
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const getBaseUrl = () => {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  // 开发环境默认连接本地后端
+  if (import.meta.env.DEV) {
+    return 'http://localhost:8000';
+  }
+  // 生产环境使用当前页面地址
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  return 'http://localhost:8000';
+};
+
+export const API_BASE_URL = getBaseUrl();
 
 // API 端点常量
 export const API_ENDPOINTS = {
