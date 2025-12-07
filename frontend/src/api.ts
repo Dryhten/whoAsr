@@ -352,6 +352,16 @@ export class AudioRecorder {
 
     async startRecording(): Promise<void> {
         try {
+            // 录音在非安全上下文下不可用（需要 https 或 localhost），提前做显式检查
+            if (!window.isSecureContext) {
+                throw new Error('录音仅在 https 或 localhost 可用，请在安全站点访问');
+            }
+
+            // 部分浏览器在非安全环境下不暴露 mediaDevices，避免调用空对象
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error('当前环境无法访问麦克风，请使用支持录音的现代浏览器并通过 https 访问');
+            }
+
             // 获取麦克风权限
             this.stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
