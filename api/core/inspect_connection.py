@@ -76,17 +76,38 @@ class InspectConnectionManager:
             )
         return connections
 
-    async def _broadcast_to_inspect_clients(self, inspect_id: str, message: dict, exclude_client: str = None):
-        """Broadcast message to all clients connected to the same inspect_id"""
+    async def _broadcast_to_inspect_clients(self, inspect_id: str, message: dict, sender_client_id: str = None):
+        """
+        Broadcast message to sender and monitor clients only
+        
+        Args:
+            inspect_id: 巡检ID
+            message: 要发送的消息
+            sender_client_id: 发送者client_id（需要接收自己的识别结果）
+        """
         if not inspect_id:
             return
 
         for client_id, state in self.connection_states.items():
-            if (
-                client_id != exclude_client
-                and state.get("inspect_id") == inspect_id
-                and client_id in self.active_connections
-            ):
+            if state.get("inspect_id") != inspect_id:
+                continue
+            
+            if client_id not in self.active_connections:
+                continue
+            
+            # 判断是否应该发送：
+            # 1. 发送者自己（如果指定了sender_client_id）
+            # 2. 监控端（client_id以monitor_开头）
+            should_send = False
+            
+            if sender_client_id and client_id == sender_client_id:
+                # 发送给发送者自己
+                should_send = True
+            elif client_id.startswith("monitor_"):
+                # 发送给监控端
+                should_send = True
+            
+            if should_send:
                 try:
                     await self.send_message(client_id, message)
                 except Exception as e:
@@ -178,8 +199,8 @@ class InspectConnectionManager:
                         "client_id": client_id,
                     }
 
-                    # 只发送给所有连接到同一个inspect_id的监控客户端
-                    await self._broadcast_to_inspect_clients(state.get("inspect_id"), message, exclude_client=client_id)
+                    # 只发送给发送者自己和监控端
+                    await self._broadcast_to_inspect_clients(state.get("inspect_id"), message, sender_client_id=client_id)
 
                     logger.info(f"Client {client_id} recognized: {result_text} (inspect_id: {state.get('inspect_id')})")
 
@@ -232,9 +253,9 @@ class InspectConnectionManager:
                                 "client_id": client_id,
                             }
 
-                            # 只发送给所有连接到同一个inspect_id的监控客户端
+                            # 只发送给发送者自己和监控端
                             await self._broadcast_to_inspect_clients(
-                                state.get("inspect_id"), message, exclude_client=client_id
+                                state.get("inspect_id"), message, sender_client_id=client_id
                             )
 
                             logger.info(
@@ -281,8 +302,8 @@ class InspectConnectionManager:
                     "client_id": client_id,
                 }
 
-                # 只发送给所有连接到同一个inspect_id的监控客户端
-                await self._broadcast_to_inspect_clients(state.get("inspect_id"), message, exclude_client=client_id)
+                # 只发送给发送者自己和监控端
+                await self._broadcast_to_inspect_clients(state.get("inspect_id"), message, sender_client_id=client_id)
 
                 logger.info(f"Client {client_id} final result: {result_text} (inspect_id: {state.get('inspect_id')})")
 
