@@ -9,3 +9,4 @@ wheels/
 .venv
 
 node_modules/
+docs/ai_docs/
