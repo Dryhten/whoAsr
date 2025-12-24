@@ -2,6 +2,7 @@
 
 import numpy as np
 import base64
+from fastapi.concurrency import run_in_threadpool
 from .config import DTYPE, logger, debug_logger
 
 
@@ -68,7 +69,9 @@ def decode_audio_chunk(audio_data: str) -> np.ndarray:
         return np.array([], dtype=DTYPE)
 
 
-def process_audio_chunk(model, audio_chunk: np.ndarray, cache: dict, chunk_size: list):
+async def process_audio_chunk(
+    model, audio_chunk: np.ndarray, cache: dict, chunk_size: list
+):
     """Process audio chunk with FunASR model"""
     try:
         # Ensure speech_chunk is a numpy array
@@ -80,7 +83,8 @@ def process_audio_chunk(model, audio_chunk: np.ndarray, cache: dict, chunk_size:
         from .config import ENCODER_CHUNK_LOOK_BACK, DECODER_CHUNK_LOOK_BACK
 
         # Process with FunASR
-        res = model.generate(
+        res = await run_in_threadpool(
+            model.generate,
             input=audio_chunk,
             cache=cache,
             is_final=False,  # Always False for streaming
@@ -105,7 +109,9 @@ def process_audio_chunk(model, audio_chunk: np.ndarray, cache: dict, chunk_size:
         raise
 
 
-def process_final_audio(model, audio_buffer: np.ndarray, cache: dict, chunk_size: list):
+async def process_final_audio(
+    model, audio_buffer: np.ndarray, cache: dict, chunk_size: list
+):
     """Process remaining audio buffer when recording stops"""
     try:
         if len(audio_buffer) == 0:
@@ -115,7 +121,8 @@ def process_final_audio(model, audio_buffer: np.ndarray, cache: dict, chunk_size
         from .config import ENCODER_CHUNK_LOOK_BACK, DECODER_CHUNK_LOOK_BACK
 
         # Process remaining audio
-        res = model.generate(
+        res = await run_in_threadpool(
+            model.generate,
             input=audio_buffer,
             cache=cache,
             is_final=True,  # Final chunk

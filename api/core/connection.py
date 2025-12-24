@@ -110,7 +110,7 @@ class ConnectionManager:
                     )
                     return
 
-                result_text = process_audio_chunk(
+                result_text = await process_audio_chunk(
                     model, speech_chunk, state["cache"], CHUNK_SIZE
                 )
 
@@ -151,7 +151,7 @@ class ConnectionManager:
                 )
                 return
 
-            result_text = process_final_audio(
+            result_text = await process_final_audio(
                 model, state["audio_buffer"], state["cache"], CHUNK_SIZE
             )
 

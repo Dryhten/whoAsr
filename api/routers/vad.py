@@ -8,7 +8,15 @@ from typing import List, Optional
 import numpy as np
 import soundfile as sf
 import json
-from fastapi import APIRouter, UploadFile, File, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    UploadFile,
+    File,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
+)
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
 from ..core.model import get_vad_model, is_vad_model_loaded
@@ -35,6 +43,7 @@ class VADResponse(BaseModel):
 
 class VADStreamSegment(BaseModel):
     """WebSocket message for VAD streaming segment"""
+
     type: str = "vad_segment"
     segments: List[List[int]]
     is_final: bool = False
@@ -51,14 +60,10 @@ def extract_vad_results(model_output: List) -> List[List[int]]:
             start_time = int(item[0]) if item[0] is not None else 0
             end_time = int(item[1]) if item[1] is not None else 0
             results.append([start_time, end_time])
-        elif isinstance(item, dict) and 'start' in item and 'end' in item:
-            results.append([int(item['start']), int(item['end'])])
+        elif isinstance(item, dict) and "start" in item and "end" in item:
+            results.append([int(item["start"]), int(item["end"])])
 
     return results
-
-
-
-
 
 
 @router.post("/detect", response_model=VADResponse)
@@ -97,7 +102,7 @@ async def detect_voice_activity(file: UploadFile = File(...)):
             raise HTTPException(status_code=503, detail="VAD model not available")
 
         logger.info(f"Processing VAD for uploaded file: {file.filename}")
-        model_output = model.generate(input=temp_file_path)
+        model_output = await run_in_threadpool(model.generate, input=temp_file_path)
 
         # Extract segments from FunASR VAD output format
         segments = []
@@ -188,8 +193,6 @@ class VADConnectionManager:
 vad_manager = VADConnectionManager()
 
 
-
-
 @router.websocket("/ws/{client_id}")
 async def websocket_vad_endpoint(websocket: WebSocket, client_id: str):
     """WebSocket endpoint for real-time VAD"""
@@ -229,7 +232,8 @@ async def websocket_vad_endpoint(websocket: WebSocket, client_id: str):
                 # Process final audio
                 state = vad_manager.get_state(client_id)
                 if state and len(state["audio_buffer"]) > 0:
-                    final_model_output = model.generate(
+                    final_model_output = await run_in_threadpool(
+                        model.generate,
                         input=state["audio_buffer"],
                         cache=state["cache"],
                         is_final=True,
@@ -284,13 +288,16 @@ async def websocket_vad_endpoint(websocket: WebSocket, client_id: str):
                 while len(state["audio_buffer"]) >= chunk_stride:
                     speech_chunk = state["audio_buffer"][:chunk_stride].copy()
                     state["audio_buffer"] = state["audio_buffer"][chunk_stride:]
-
                     try:
                         # Process VAD with simplified parameters for real-time detection
-                        model_output = model.generate(
-                            input=speech_chunk, is_final=False, chunk_size=chunk_size_ms
+                        model_output = await run_in_threadpool(
+                            model.generate,
+                            input=speech_chunk,
+                            is_final=False,
+                            chunk_size=chunk_size_ms,
                         )
 
+                        # Extract segments from FunASR VAD output format
                         # Extract segments from FunASR VAD output format
                         segments = []
                         if len(model_output[0]["value"]):

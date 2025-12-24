@@ -7,8 +7,12 @@ from pydantic import BaseModel
 from ..core.model import get_timestamp_model, is_timestamp_model_loaded
 from ..core.schemas import UploadResponse, ProcessingResponse
 from ..core.file_utils import (
-    generate_unique_id, validate_audio_file, save_upload_file,
-    save_text_file, cleanup_temp_files, validate_file_exists
+    generate_unique_id,
+    validate_audio_file,
+    save_upload_file,
+    save_text_file,
+    cleanup_temp_files,
+    validate_file_exists,
 )
 from ..core.model_utils import process_model_request
 from ..core.config import logger
@@ -16,22 +20,18 @@ from ..core.config import logger
 router = APIRouter(prefix="/timestamp", tags=["Timestamp"])
 
 
-
-
-
-
-
-
 @router.post("/predict", response_model=ProcessingResponse)
 async def predict_timestamps(
     audio_file: UploadFile = File(...),
     text_file: Optional[UploadFile] = File(None),
-    text_content: Optional[str] = Form(None)
+    text_content: Optional[str] = Form(None),
 ):
     """Upload audio and text files to predict timestamps"""
     validate_audio_file(audio_file.filename)
     if not text_file and not text_content:
-        raise HTTPException(status_code=400, detail="Either text_file or text_content is required")
+        raise HTTPException(
+            status_code=400, detail="Either text_file or text_content is required"
+        )
 
     file_id = generate_unique_id()
     audio_file_path = save_upload_file(audio_file, file_id)
@@ -42,28 +42,38 @@ async def predict_timestamps(
 
     # Create request object for unified processing
     class TempRequest:
-        def __init__(self, audio_path: str, text_path: Optional[str], text: Optional[str]):
+        def __init__(
+            self, audio_path: str, text_path: Optional[str], text: Optional[str]
+        ):
             self.audio_file_path = audio_path
             self.text_file_path = text_path
             self.text_content = text
 
-    temp_request = TempRequest(str(audio_file_path), str(text_file_path) if text_file_path else None, text_content)
+    temp_request = TempRequest(
+        str(audio_file_path),
+        str(text_file_path) if text_file_path else None,
+        text_content,
+    )
 
     try:
-        results = process_model_request(
+        results = await process_model_request(
             model_getter=get_timestamp_model,
             model_checker=is_timestamp_model_loaded,
             model_name="Timestamp",
-            request=temp_request
+            request=temp_request,
         )
 
-        cleanup_temp_files(str(audio_file_path), str(text_file_path) if text_file_path else None)
+        cleanup_temp_files(
+            str(audio_file_path), str(text_file_path) if text_file_path else None
+        )
 
         return ProcessingResponse(
             success=True,
             message="Timestamp prediction completed successfully",
-            results=results
+            results=results,
         )
     except Exception as e:
-        cleanup_temp_files(str(audio_file_path), str(text_file_path) if text_file_path else None)
+        cleanup_temp_files(
+            str(audio_file_path), str(text_file_path) if text_file_path else None
+        )
         raise

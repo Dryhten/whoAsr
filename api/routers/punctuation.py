@@ -31,7 +31,7 @@ async def add_punctuation_endpoint(request: PunctuationRequest):
     """Add punctuation to text"""
     try:
         # Add punctuation - the add_punctuation function will handle model loading
-        punctuated_text = add_punctuation(request.text)
+        punctuated_text = await add_punctuation(request.text)
 
         return PunctuationResponse(
             original_text=request.text,
@@ -45,7 +45,3 @@ async def add_punctuation_endpoint(request: PunctuationRequest):
         raise HTTPException(
             status_code=500, detail=f"Failed to add punctuation: {str(e)}"
         )
-
-
-
-

@@ -1,6 +1,7 @@
 """Model management for speech recognition API"""
 
 from funasr import AutoModel
+from fastapi.concurrency import run_in_threadpool
 from .config import logger
 from .models import ModelType, get_model_config
 
@@ -77,7 +78,9 @@ def unload_model_by_type(model_type: ModelType) -> bool:
     """Unload model by type (set to None)"""
     if model_instances[model_type] is not None:
         config = get_model_config(model_type)
-        logger.info(f"Unloading {config.display_name if config else model_type.value}...")
+        logger.info(
+            f"Unloading {config.display_name if config else model_type.value}..."
+        )
         model_instances[model_type] = None
         return True
     return False
@@ -169,7 +172,7 @@ def load_timestamp_model():
     return load_model_by_type(ModelType.TIMESTAMP)
 
 
-def add_punctuation(text: str) -> str:
+async def add_punctuation(text: str) -> str:
     """Add punctuation to text using the punctuation model"""
     model = get_punctuation_model()
     if model is None:
@@ -179,7 +182,7 @@ def add_punctuation(text: str) -> str:
         model = get_punctuation_model()
 
     try:
-        result = model.generate(input=text)
+        result = await run_in_threadpool(model.generate, input=text)
         if result and len(result) > 0:
             return result[0]["text"] if isinstance(result[0], dict) else str(result[0])
         return text
@@ -188,11 +191,11 @@ def add_punctuation(text: str) -> str:
         return text
 
 
-def run_offline_recognition(
+async def run_offline_recognition(
     file_path: str,
     batch_size_s: int = 300,
     batch_size_threshold_s: int = 60,
-    hotword: str = None
+    hotword: str = None,
 ):
     """Run offline recognition on audio file"""
     model = get_offline_model()
@@ -212,7 +215,7 @@ def run_offline_recognition(
         if hotword:
             kwargs["hotword"] = hotword
 
-        result = model.generate(**kwargs)
+        result = await run_in_threadpool(model.generate, **kwargs)
         return result
     except Exception as e:
         logger.error(f"Failed to run offline recognition: {e}")
