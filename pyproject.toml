@@ -3,25 +3,33 @@ name = "whoasr"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "funasr==1.2.9",
     "modelscope==1.30.0",
+    "transformers>=4.40.0,<5.0.0",
     "torch==2.8.0+cpu",
     "torchaudio==2.8.0+cpu",
     "torchvision==0.23.0+cpu",
     "pyaudio",
     "numpy",
     "fastapi",
+    "pydantic-settings",
     "uvicorn[standard]",
     "websockets",
     "psutil",
     "python-multipart",
 ]
 
+[tool.uv.sources]
+torch = { index = "pytorch" }
+torchaudio = { index = "pytorch" }
+torchvision = { index = "pytorch" }
+
 [[tool.uv.index]]
 name = "pytorch"
 url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [[tool.uv.index]]
 name = "tsinghua"

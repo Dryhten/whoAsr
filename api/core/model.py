@@ -5,6 +5,12 @@ from fastapi.concurrency import run_in_threadpool
 from .config import logger
 from .models import ModelType, get_model_config
 
+# 注册 Fun-ASR-Nano 模型 (FunASR 需显式 import 才能加载)
+try:
+    from funasr.models.fun_asr_nano.model import FunASRNano  # noqa: F401
+except ImportError:
+    pass  # 旧版 FunASR 无此模块，使用 paraformer 时无影响
+
 # Global model instances
 model_instances = {
     ModelType.STREAMING_ASR: None,
@@ -35,13 +41,28 @@ def load_model_by_type(model_type: ModelType) -> bool:
             model_instances[model_type] = AutoModel(model=config.model_name)
 
         elif model_type == ModelType.OFFLINE_ASR:
-            model_instances[model_type] = AutoModel(
-                model=config.model_name,
-                vad_model=config.config.get("vad_model"),
-                vad_kwargs=config.config.get("vad_kwargs"),
-                punc_model=config.config.get("punc_model"),
-                spk_model=config.config.get("spk_model"),
-            )
+            cfg = config.config
+            if cfg.get("model_variant") == "fun_asr_nano":
+                # Fun-ASR-Nano: 自动确保 Qwen3-0.6B 子模型已下载
+                from .funasr_nano import ensure_fun_asr_nano_ready
+                if not ensure_fun_asr_nano_ready(config.model_name):
+                    logger.error("Fun-ASR-Nano 依赖未就绪，加载失败")
+                    return False
+                load_kwargs = {"model": config.model_name}
+                if cfg.get("vad_model"):
+                    load_kwargs["vad_model"] = cfg["vad_model"]
+                if cfg.get("vad_kwargs"):
+                    load_kwargs["vad_kwargs"] = cfg["vad_kwargs"]
+                model_instances[model_type] = AutoModel(**load_kwargs)
+            else:
+                # paraformer-zh 等传统模型
+                model_instances[model_type] = AutoModel(
+                    model=config.model_name,
+                    vad_model=cfg.get("vad_model"),
+                    vad_kwargs=cfg.get("vad_kwargs"),
+                    punc_model=cfg.get("punc_model"),
+                    spk_model=cfg.get("spk_model"),
+                )
 
         elif model_type == ModelType.PUNCTUATION:
             model_instances[model_type] = AutoModel(model=config.model_name)
@@ -205,15 +226,31 @@ async def run_offline_recognition(
             raise Exception("Failed to load offline model")
         model = get_offline_model()
 
-    try:
-        kwargs = {
-            "input": file_path,
-            "batch_size_s": batch_size_s,
-            "batch_size_threshold_s": batch_size_threshold_s,
-        }
+    config = get_model_config(ModelType.OFFLINE_ASR)
+    cfg = config.config if config else {}
+    is_fun_asr_nano = cfg.get("model_variant") == "fun_asr_nano"
 
-        if hotword:
-            kwargs["hotword"] = hotword
+    try:
+        if is_fun_asr_nano:
+            # Fun-ASR-Nano API: input 为 list，支持 hotwords/language/itn
+            kwargs = {
+                "input": [file_path],
+                "cache": {},
+                "batch_size": cfg.get("batch_size", 1),
+                "language": cfg.get("language", "中文"),
+                "itn": cfg.get("itn", True),
+            }
+            if hotword:
+                kwargs["hotwords"] = [w.strip() for w in hotword.split(",") if w.strip()]
+        else:
+            # paraformer-zh 等传统 API
+            kwargs = {
+                "input": file_path,
+                "batch_size_s": batch_size_s,
+                "batch_size_threshold_s": batch_size_threshold_s,
+            }
+            if hotword:
+                kwargs["hotword"] = hotword
 
         result = await run_in_threadpool(model.generate, **kwargs)
         return result

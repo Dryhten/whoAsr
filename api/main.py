@@ -1,5 +1,10 @@
 """Main application entry point for speech recognition API"""
 
+# Apply funasr patch before any model loading (fixes attention_mask warning for Fun-ASR-Nano)
+from api.core.funasr_patch import apply_funasr_attention_mask_patch
+
+apply_funasr_attention_mask_patch()
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -243,6 +248,8 @@ if __name__ == "__main__":
     import uvicorn
     import argparse
 
+    from api.core.settings import get_settings
+
     parser = argparse.ArgumentParser(description="Run the speech recognition API")
     parser.add_argument(
         "--auto-load",
@@ -254,4 +261,5 @@ if __name__ == "__main__":
     if args.auto_load:
         os.environ["AUTO_LOAD_MODELS"] = "true"
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    settings = get_settings()
+    uvicorn.run(app, host=settings.host, port=settings.port)

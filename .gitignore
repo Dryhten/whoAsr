@@ -10,3 +10,5 @@ wheels/
 
 node_modules/
 docs/ai_docs/
+tmp
+.env
