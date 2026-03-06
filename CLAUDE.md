@@ -11,7 +11,8 @@ Real-time Speech Recognition API built with FastAPI and FunASR. The project prov
 ### Development
 ```bash
 # Install Python dependencies (uses uv package manager)
-uv sync
+uv sync --extra cpu   # CPU 版本
+uv sync --extra gpu   # GPU 版本 (CUDA 12.4)
 
 # Run the main API server (recommended modular implementation)
 uv run python api/main.py

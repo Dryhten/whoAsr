@@ -4,6 +4,17 @@
 
 ## 🚀 快速开始
 
+### PyTorch 版本选择
+
+本项目支持 CPU 和 GPU 两种运行环境，使用 uv 的 `--extra` 选择：
+
+| 环境 | 命令 | 说明 |
+|------|------|------|
+| **CPU** | `uv sync --extra cpu` | 无 NVIDIA GPU 时使用 |
+| **GPU** | `uv sync --extra gpu` | 需已安装 CUDA 12.4 |
+
+**注意**：必须指定 `--extra cpu` 或 `--extra gpu` 之一，两者互斥。
+
 ### 本地开发
 
 1. **克隆项目**
@@ -14,8 +25,8 @@ cd whoAsr
 
 2. **安装依赖**
 ```bash
-# 安装 Python 依赖
-uv sync
+# 安装 Python 依赖（按环境选择 CPU 或 GPU 版本）
+uv sync --extra cpu   # 或 uv sync --extra gpu
 
 # 安装前端依赖
 cd frontend

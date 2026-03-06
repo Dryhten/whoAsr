@@ -8,9 +8,6 @@ dependencies = [
     "funasr==1.2.9",
     "modelscope==1.30.0",
     "transformers>=4.40.0,<5.0.0",
-    "torch==2.8.0+cpu",
-    "torchaudio==2.8.0+cpu",
-    "torchvision==0.23.0+cpu",
     "pyaudio",
     "numpy",
     "fastapi",
@@ -21,14 +18,45 @@ dependencies = [
     "python-multipart",
 ]
 
+[project.optional-dependencies]
+cpu = [
+    "torch==2.6.0+cpu",
+    "torchaudio==2.6.0+cpu",
+    "torchvision==0.21.0+cpu",
+]
+gpu = [
+    "torch==2.6.0+cu124",
+    "torchaudio==2.6.0+cu124",
+    "torchvision==0.21.0+cu124",
+]
+
 [tool.uv.sources]
-torch = { index = "pytorch" }
-torchaudio = { index = "pytorch" }
-torchvision = { index = "pytorch" }
+torch = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-gpu", extra = "gpu" },
+]
+torchaudio = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-gpu", extra = "gpu" },
+]
+torchvision = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-gpu", extra = "gpu" },
+]
+
+[tool.uv]
+conflicts = [
+    [{ extra = "cpu" }, { extra = "gpu" }],
+]
 
 [[tool.uv.index]]
-name = "pytorch"
+name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-gpu"
+url = "https://download.pytorch.org/whl/cu124"
 explicit = true
 
 [[tool.uv.index]]
