@@ -99,6 +99,9 @@ async def health_check():
             "cpu_usage_percent": "unknown",
         }
 
+    # GPU 状态检测
+    gpu_info = _get_gpu_info()
+
     # Service capabilities
     services = {}
     for model_type, status in models_status.items():
@@ -125,12 +128,81 @@ async def health_check():
         "services": services,
         "total_loaded": total_loaded,
         "system": system_info,
+        "gpu": gpu_info,
         "api_info": {
             "version": "1.0.0",
             "title": "Real-time Speech Recognition API",
             "docs": "/docs",
             "websocket": "/ws/{client_id}",
         },
+    }
+
+
+def _get_gpu_info() -> dict:
+    """检测 GPU 是否可用及使用情况，支持 MUSA（摩尔线程）和 CUDA"""
+    try:
+        import torch
+
+        # 优先检测 MUSA（摩尔线程 GPU，torch_musa 会注入 torch.musa）
+        try:
+            import torch_musa  # noqa: F401
+
+            if hasattr(torch, "musa") and torch.musa.is_available():
+                return _collect_device_info(torch.musa, "MUSA")
+        except ImportError:
+            pass
+
+        # 回退到 CUDA（NVIDIA GPU）
+        if hasattr(torch, "cuda") and torch.cuda.is_available():
+            return _collect_device_info(torch.cuda, "CUDA")
+
+        return {
+            "available": False,
+            "in_use": False,
+            "backend": None,
+            "message": "未检测到 GPU（MUSA/CUDA 均不可用）",
+        }
+    except ImportError:
+        return {"available": False, "in_use": False, "backend": None, "message": "未安装 PyTorch"}
+    except Exception as e:
+        return {
+            "available": False,
+            "in_use": False,
+            "backend": None,
+            "message": f"检测失败: {e}",
+        }
+
+
+def _collect_device_info(backend, backend_name: str) -> dict:
+    """从 MUSA 或 CUDA backend 收集设备信息"""
+    device_count = backend.device_count()
+    devices = []
+    for i in range(device_count):
+        props = backend.get_device_properties(i)
+        mem_total = props.total_memory / (1024**3)
+        try:
+            mem_allocated = backend.memory_allocated(i) / (1024**3)
+            mem_reserved = backend.memory_reserved(i) / (1024**3)
+        except (AttributeError, TypeError):
+            mem_allocated = mem_reserved = 0.0
+        devices.append(
+            {
+                "index": i,
+                "name": getattr(props, "name", f"GPU {i}"),
+                "memory_total_gb": round(mem_total, 2),
+                "memory_allocated_gb": round(mem_allocated, 2),
+                "memory_reserved_gb": round(mem_reserved, 2),
+                "memory_usage_percent": round(
+                    (mem_allocated / mem_total * 100) if mem_total > 0 else 0, 1
+                ),
+            }
+        )
+    return {
+        "available": True,
+        "in_use": True,
+        "backend": backend_name,
+        "device_count": device_count,
+        "devices": devices,
     }
 
 
