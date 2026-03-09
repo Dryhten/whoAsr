@@ -39,13 +39,13 @@ cp .env.example .env   # 复制后按需修改
 
 4. **安装依赖**
 ```bash
-# 安装 Python 依赖（按环境选择 CPU 或 GPU 版本）
-uv sync --extra cpu   # 或 uv sync --extra gpu
+# 一键安装前后端依赖（按环境选择）
+npm run install:cpu   # CPU 版本
+npm run install:gpu   # GPU 版本 (需 CUDA 12.4)
 
-# 安装前端依赖
-cd frontend
-npm install
-cd ..
+# 或手动安装
+uv sync --extra cpu   # 或 uv sync --extra gpu
+cd frontend && npm install
 ```
 
 5. **启动开发服务**
