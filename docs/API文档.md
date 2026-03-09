@@ -349,6 +349,104 @@ ws://localhost:8000/vad/ws/{client_id}
 }
 ```
 
+### 3. 准实时识别 WebSocket (FunASR-Nano)
+
+基于实时 VAD 切分语音片段，将每个片段发送给 FunASR-Nano 离线模型识别，实现准实时出字效果。适用于 vad-nano 页面（「实时识别 (FunASR-Nano)」）。
+
+**前置条件**：需先加载 VAD 模型和离线识别模型（`offline_asr`）。
+
+#### 3.1 连接地址
+```
+ws://localhost:8000/realtime-nano/ws/{client_id}
+```
+
+**路径参数：**
+- `client_id`: 客户端唯一标识符
+
+#### 3.2 消息格式
+
+**客户端发送消息：**
+
+1. **开始识别**（支持可选上下文引导）
+```json
+{
+  "type": "start_vad",
+  "initial_prompt": "这是一段执法记录音频，包含大量数字编号"
+}
+```
+- `type`: 固定为 `start_vad` 或 `start`
+- `initial_prompt`（可选）: 上下文引导词，用于提升识别准确率
+
+2. **发送音频数据**
+```json
+{
+  "type": "audio_chunk",
+  "data": "base64编码的音频数据"
+}
+```
+
+3. **停止识别**
+```json
+{
+  "type": "stop_vad"
+}
+```
+
+**服务端返回消息：**
+
+1. **识别结果**（每句/段语音识别完成后推送）
+```json
+{
+  "type": "recognition_result",
+  "text": "你好，世界",
+  "is_final": false
+}
+```
+
+2. **VAD 流式片段**（用于前端展示语音片段时间轴）
+```json
+{
+  "type": "vad_result",
+  "raw": [{"key": "...", "value": [[start, -1], [-1, end]]}],
+  "is_final": false
+}
+```
+- `raw` 中 `[start, -1]` 表示语音开始，`[-1, end]` 表示语音结束（单位：毫秒）
+
+3. **状态消息**
+```json
+{
+  "type": "status",
+  "message": "VAD started"
+}
+```
+
+4. **错误消息**
+```json
+{
+  "type": "error",
+  "message": "错误描述"
+}
+```
+
+#### 3.3 使用流程
+
+1. 确保已加载 VAD 和离线识别模型
+2. 建立 WebSocket 连接
+3. 发送 `start_vad` 消息（可带 `initial_prompt`）
+4. 持续发送 `audio_chunk` 消息（base64 编码音频）
+5. 服务端按 VAD 切分的语音片段自动调用离线识别，推送 `recognition_result`
+6. 发送 `stop_vad` 结束识别
+
+#### 3.4 与实时流式识别的区别
+
+| 特性 | 实时流式 (`/ws/`) | 准实时 Nano (`/realtime-nano/ws/`) |
+|------|-------------------|-------------------------------------|
+| 模型 | paraformer-zh-streaming | VAD + FunASR-Nano 离线 |
+| 出字方式 | 流式逐字 | 按句/段推送 |
+| 上下文引导 | 不支持 | 支持 `initial_prompt` |
+| 依赖模型 | streaming_asr | vad + offline_asr |
+
 ## 三、音频格式要求
 
 ### 1. 流式识别
@@ -436,6 +534,37 @@ ws.onmessage = function(event) {
 
 // 停止录音
 ws.send(JSON.stringify({type: 'stop_recording'}));
+```
+
+**准实时识别 (FunASR-Nano)：**
+```javascript
+// 需先加载 VAD 和 offline_asr 模型
+const ws = new WebSocket('ws://localhost:8000/realtime-nano/ws/test_client');
+
+ws.onopen = () => {
+  // 开始识别，可选上下文引导
+  ws.send(JSON.stringify({
+    type: 'start_vad',
+    initial_prompt: '这是一段执法记录音频，包含大量数字编号'
+  }));
+};
+
+// 发送音频（base64）
+ws.send(JSON.stringify({ type: 'audio_chunk', data: base64Audio }));
+
+ws.onmessage = (event) => {
+  const msg = JSON.parse(event.data);
+  if (msg.type === 'recognition_result') {
+    console.log('识别结果:', msg.text);
+  } else if (msg.type === 'vad_result') {
+    // 可解析 raw 展示语音片段时间轴
+  } else if (msg.type === 'error') {
+    console.error(msg.message);
+  }
+};
+
+// 停止识别
+ws.send(JSON.stringify({ type: 'stop_vad' }));
 ```
 
 ## 六、性能建议

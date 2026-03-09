@@ -24,6 +24,7 @@
 - [健康检查](../README.md#健康检查-get-health)
 - [模型管理](../README.md#模型管理)
 - [实时语音识别](../README.md#实时语音识别-websocket)
+- [准实时识别 (FunASR-Nano)](./API文档.md#3-准实时识别-websocket-funasr-nano)
 - [离线语音识别](../README.md#离线语音识别-post-offlinerecognize)
 - [语音活动检测](../README.md#语音活动检测-post-vaddetect)
 - [标点符号恢复](../README.md#标点符号恢复-post-punctuationadd)
@@ -61,6 +62,7 @@
 
 ## 📝 文档更新记录
 
+- **2025-03-09**: 补充准实时识别 (FunASR-Nano) WebSocket 接口文档
 - **2025-10-04**: 创建 API 上下文工程最佳实践指南
 - **2025-10-04**: 添加完整的文档结构
 
