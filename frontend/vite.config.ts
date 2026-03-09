@@ -1,50 +1,56 @@
 import path from "path"
 import tailwindcss from "@tailwindcss/vite"
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import preact from '@preact/preset-vite';
 import basicSsl from '@vitejs/plugin-basic-ssl';
 
 // https://vitejs.dev/config/
-export default defineConfig({
-	plugins: [preact(), tailwindcss(), basicSsl()],
+export default defineConfig(({ mode }) => {
+	// 从项目根目录 .env 读取后端端口
+	const env = loadEnv(mode, path.resolve(__dirname, '..'), '')
+	const apiPort = env.PORT || '8000'
+	const apiTarget = `http://localhost:${apiPort}`
 
-	resolve: {
-		alias: {
-			"@": path.resolve(__dirname, "./src"),
-		},
-	},
+	return {
+		plugins: [preact(), tailwindcss(), basicSsl()],
 
-	server: {
-		https: true,
-		host: true,
-		proxy: {
-			'/model': { target: 'http://localhost:8000', ws: true },
-			'/offline': 'http://localhost:8000',
-			'/punctuation': 'http://localhost:8000',
-			'/vad': { target: 'http://localhost:8000', ws: true },
-			'/timestamp': 'http://localhost:8000',
-			'/health': 'http://localhost:8000',
-			'/ws': { target: 'http://localhost:8000', ws: true },
-			'/realtime-nano': { target: 'http://localhost:8000', ws: true },
-			'/docs': 'http://localhost:8000',
-			'/openapi.json': 'http://localhost:8000',
+		resolve: {
+			alias: {
+				"@": path.resolve(__dirname, "./src"),
+			},
 		},
-		hmr: {
-			overlay: true,
-		},
-		watch: {
-			usePolling: false,
-			interval: 100,
-		},
-	},
 
-	optimizeDeps: {
-		include: [
-			'preact',
-			'preact/compat',
-			'preact/hooks',
-			'preact-iso',
-		],
-	},
+		server: {
+			https: true,
+			host: true,
+			proxy: {
+				'/model': { target: apiTarget, ws: true, changeOrigin: true },
+				'/offline': apiTarget,
+				'/punctuation': apiTarget,
+				'/vad': { target: apiTarget, ws: true, changeOrigin: true },
+				'/timestamp': apiTarget,
+				'/health': apiTarget,
+				'/ws': { target: apiTarget, ws: true, changeOrigin: true },
+				'/realtime-nano': { target: apiTarget, ws: true, changeOrigin: true },
+				'/docs': apiTarget,
+				'/openapi.json': apiTarget,
+			},
+			hmr: {
+				overlay: true,
+			},
+			watch: {
+				usePolling: false,
+				interval: 100,
+			},
+		},
 
-	});
+		optimizeDeps: {
+			include: [
+				'preact',
+				'preact/compat',
+				'preact/hooks',
+				'preact-iso',
+			],
+		},
+	}
+})
