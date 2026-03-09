@@ -86,6 +86,7 @@ class RealtimeNanoManager:
             "current_utterance_buffer": np.array([], dtype=np.float32),
             "in_speech": False,  # 是否处于活跃语音片段内（收到 [start,-1] 后、[-1,end] 前）
             "pending_flush": False,  # 收到 [-1,end] 后待 flush，若下一 chunk 有 [start,-1] 则视为连续不 flush
+            "initial_prompt": "",  # 上下文引导词，用于 FunASR-Nano
         }
         logger.info(f"RealtimeNano client {client_id} connected")
 
@@ -119,7 +120,11 @@ async def _flush_utterance_to_asr(client_id: str, state: dict, sample_rate: int)
     temp_path = None
     try:
         temp_path = write_float32_to_temp_wav(buf, sample_rate)
-        result = await run_offline_recognition(file_path=str(temp_path))
+        initial_prompt = (state.get("initial_prompt") or "").strip() or None
+        result = await run_offline_recognition(
+            file_path=str(temp_path),
+            initial_prompt=initial_prompt,
+        )
         text = _extract_text_from_offline_result(result)
         text = chinese_numbers_to_arabic(text)
         await realtime_nano_manager.send_message(
@@ -176,6 +181,7 @@ async def websocket_realtime_nano_endpoint(websocket: WebSocket, client_id: str)
                 state["current_utterance_buffer"] = np.array([], dtype=np.float32)
                 state["in_speech"] = False
                 state["pending_flush"] = False
+                state["initial_prompt"] = message.get("initial_prompt") or ""
                 await realtime_nano_manager.send_message(
                     client_id, {"type": "status", "message": "VAD started"}
                 )

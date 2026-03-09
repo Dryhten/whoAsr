@@ -957,9 +957,13 @@ export class RealtimeNanoWebSocket {
         if (this.ws) { this.ws.close(); this.ws = null; }
     }
 
-    sendStart() {
+    sendStart(initialPrompt?: string) {
         if (this.ws?.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify({ type: 'start_vad' }));
+            const msg: Record<string, string> = { type: 'start_vad' };
+            if (initialPrompt?.trim()) {
+                msg.initial_prompt = initialPrompt.trim();
+            }
+            this.ws.send(JSON.stringify(msg));
         }
     }
 

@@ -128,6 +128,7 @@ export function Vad() {
   const clientIdRef = useRef<string>("");
 
   const [nanoResult, setNanoResult] = useState("");
+  const [nanoInitialPrompt, setNanoInitialPrompt] = useState("");
   const [nanoStreamSegments, setNanoStreamSegments] = useState<StreamVadState>({
     completed: [],
     pendingStart: null,
@@ -326,7 +327,7 @@ export function Vad() {
       setNanoError("");
       setNanoResult("");
       setNanoStreamSegments({ completed: [], pendingStart: null });
-      nanoWsRef.current?.sendStart();
+      nanoWsRef.current?.sendStart(nanoInitialPrompt.trim() || undefined);
       await nanoRecorderRef.current!.startRecording();
       setNanoRecording(true);
       setNanoStatus("正在录音...");
@@ -806,6 +807,23 @@ export function Vad() {
                     requiredModel="offline_asr"
                     title="离线识别模型"
                   />
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>上下文引导 (可选)</CardTitle>
+                      <CardDescription>
+                        提示词可引导识别上下文，如「这是一段执法记录音频，包含大量数字编号」
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <input
+                        type="text"
+                        value={nanoInitialPrompt}
+                        onInput={(e) => setNanoInitialPrompt((e.target as HTMLInputElement).value)}
+                        placeholder="如：这是一段执法记录音频，包含大量数字编号"
+                        className="w-full px-3 py-2 text-sm border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                      />
+                    </CardContent>
+                  </Card>
                   <Card
                     className={
                       nanoConnected
