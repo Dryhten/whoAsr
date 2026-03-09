@@ -7,7 +7,7 @@
     "dev": "concurrently -n frontend,api -c blue,magenta \"npm run dev:frontend\" \"npm run dev:api\"",
     "dev:frontend": "npm run dev --prefix frontend",
     "dev:api": "uv run python -m api.main",
-    "build": "npm run build --prefix frontend",
+    "build": "cd frontend && npm run build",
     "start": "uv run python -m api.main"
   },
   "devDependencies": {

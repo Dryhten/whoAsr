@@ -127,6 +127,43 @@ def get_loaded_models_status() -> dict:
     return status
 
 
+def _get_model_device(model) -> str | None:
+    """从 FunASR/PyTorch 模型中提取实际推理设备"""
+    if model is None:
+        return None
+    try:
+        # 优先从 parameters 获取（nn.Module 标准方式）
+        for obj in (model, getattr(model, "model", None)):
+            if obj is None:
+                continue
+            params = list(obj.parameters()) if hasattr(obj, "parameters") else []
+            if params:
+                return str(params[0].device)
+        # 尝试 model.device 属性
+        if hasattr(model, "device"):
+            return str(model.device)
+        # 递归查找子模块中的第一个参数（兼容 FunASR 嵌套结构）
+        if hasattr(model, "modules") and callable(getattr(model, "modules")):
+            for m in model.modules():
+                params = list(m.parameters()) if hasattr(m, "parameters") else []
+                if params:
+                    return str(params[0].device)
+    except Exception:
+        pass
+    return None
+
+
+def get_loaded_models_devices() -> dict:
+    """获取已加载模型的实际推理设备"""
+    result = {}
+    for model_type in ModelType:
+        model = get_model_by_type(model_type)
+        dev = _get_model_device(model)
+        if dev is not None:
+            result[model_type.value] = dev
+    return result
+
+
 # Legacy functions for backward compatibility
 def load_model(model_name: str = "paraformer-zh-streaming"):
     """Legacy function - use load_model_by_type instead"""

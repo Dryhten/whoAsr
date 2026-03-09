@@ -13,7 +13,7 @@ from fastapi import UploadFile, File, Form, Body
 from typing import Optional
 from contextlib import asynccontextmanager
 import os
-from api.core.model import get_loaded_models_status
+from api.core.model import get_loaded_models_status, get_loaded_models_devices
 from api.core.config import logger
 from api.core.settings import get_settings
 from api.routers.websocket import websocket_endpoint
@@ -99,8 +99,11 @@ async def health_check():
             "cpu_usage_percent": "unknown",
         }
 
-    # GPU 状态检测
+    # GPU 状态检测 + 已加载模型的推理设备
     gpu_info = _get_gpu_info()
+    inference_devices = get_loaded_models_devices()
+    if inference_devices:
+        gpu_info["inference_devices"] = inference_devices
 
     # Service capabilities
     services = {}
