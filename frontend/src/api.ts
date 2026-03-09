@@ -354,7 +354,7 @@ export class AudioRecorder {
         try {
             // 录音在非安全上下文下不可用（需要 https 或 localhost），提前做显式检查
             if (!window.isSecureContext) {
-                throw new Error('录音仅在 https 或 localhost 可用，请在安全站点访问');
+                throw new Error('录音仅在 https 或 localhost 可用。请使用 https://localhost:5173 或 http://localhost:5173 访问');
             }
 
             // 部分浏览器在非安全环境下不暴露 mediaDevices，避免调用空对象

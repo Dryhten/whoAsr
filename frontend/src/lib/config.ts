@@ -8,9 +8,9 @@ const getBaseUrl = () => {
   if (import.meta.env.VITE_API_BASE_URL) {
     return import.meta.env.VITE_API_BASE_URL;
   }
-  // 开发环境默认连接本地后端
+  // 开发环境：空字符串走 Vite 代理，支持 HTTPS 录音（麦克风需安全上下文）
   if (import.meta.env.DEV) {
-    return 'http://localhost:8000';
+    return '';
   }
   // 生产环境使用当前页面地址
   if (typeof window !== 'undefined') {

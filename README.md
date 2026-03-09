@@ -59,7 +59,7 @@ npm run dev
 ```
 
 6. **访问应用**
-- 前端开发界面: http://localhost:5173
+- 前端开发界面: https://localhost:5173 （HTTPS 为麦克风录音提供安全上下文，首次访问需接受浏览器自签名证书提示）
 - 后端 API 文档: http://localhost:8000/docs
 - 健康检查: http://localhost:8000/health
 
