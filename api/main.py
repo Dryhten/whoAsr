@@ -13,7 +13,7 @@ from fastapi import UploadFile, File, Form, Body
 from typing import Optional
 from contextlib import asynccontextmanager
 import os
-from api.core.model import get_loaded_models_status, get_loaded_models_devices
+from api.core.model import get_loaded_models_status, get_loaded_models_devices, _resolve_device
 from api.core.config import logger
 from api.core.settings import get_settings
 from api.routers.websocket import websocket_endpoint
@@ -104,6 +104,7 @@ async def health_check():
     inference_devices = get_loaded_models_devices()
     if inference_devices:
         gpu_info["inference_devices"] = inference_devices
+    gpu_info["configured_device"] = _resolve_device(get_settings().model_device)
 
     # Service capabilities
     services = {}

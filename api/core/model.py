@@ -5,6 +5,17 @@ from fastapi.concurrency import run_in_threadpool
 from .config import logger
 from .models import ModelType, get_model_config
 from .text_utils import apply_chinese_numbers_to_result
+from .settings import get_settings
+
+
+def _resolve_device(device_str: str, backend: str | None = None) -> str:
+    """将配置转为 PyTorch 设备：0/1/2 → cuda:0 或 musa:0，cpu 等保持原样"""
+    s = str(device_str).strip()
+    if s.isdigit():
+        backend = (backend or get_settings().model_device_backend).strip().lower()
+        return f"{backend}:{s}"
+    return s
+
 
 # 注册 Fun-ASR-Nano 模型 (FunASR 需显式 import 才能加载)
 try:
@@ -35,11 +46,12 @@ def load_model_by_type(model_type: ModelType) -> bool:
         logger.error(f"No configuration found for model type: {model_type.value}")
         return False
 
-    logger.info(f"Loading {config.display_name} ({config.model_name})...")
+    device = _resolve_device(get_settings().model_device)
+    logger.info(f"Loading {config.display_name} ({config.model_name}) on {device}...")
 
     try:
         if model_type == ModelType.STREAMING_ASR:
-            model_instances[model_type] = AutoModel(model=config.model_name)
+            model_instances[model_type] = AutoModel(model=config.model_name, device=device)
 
         elif model_type == ModelType.OFFLINE_ASR:
             cfg = config.config
@@ -54,11 +66,13 @@ def load_model_by_type(model_type: ModelType) -> bool:
                     load_kwargs["vad_model"] = cfg["vad_model"]
                 if cfg.get("vad_kwargs"):
                     load_kwargs["vad_kwargs"] = cfg["vad_kwargs"]
+                load_kwargs["device"] = device
                 model_instances[model_type] = AutoModel(**load_kwargs)
             else:
                 # paraformer-zh 等传统模型
                 model_instances[model_type] = AutoModel(
                     model=config.model_name,
+                    device=device,
                     vad_model=cfg.get("vad_model"),
                     vad_kwargs=cfg.get("vad_kwargs"),
                     punc_model=cfg.get("punc_model"),
@@ -66,18 +80,18 @@ def load_model_by_type(model_type: ModelType) -> bool:
                 )
 
         elif model_type == ModelType.PUNCTUATION:
-            model_instances[model_type] = AutoModel(model=config.model_name)
+            model_instances[model_type] = AutoModel(model=config.model_name, device=device)
 
         elif model_type == ModelType.VAD:
             cfg = config.config
-            load_kwargs = {"model": config.model_name}
+            load_kwargs = {"model": config.model_name, "device": device}
             for key in ("max_end_silence_time", "speech_to_sil_time_thres"):
                 if key in cfg:
                     load_kwargs[key] = cfg[key]
             model_instances[model_type] = AutoModel(**load_kwargs)
 
         elif model_type == ModelType.TIMESTAMP:
-            model_instances[model_type] = AutoModel(model=config.model_name)
+            model_instances[model_type] = AutoModel(model=config.model_name, device=device)
 
         else:
             logger.error(f"Unsupported model type: {model_type.value}")

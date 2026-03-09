@@ -18,6 +18,8 @@ class Settings(BaseSettings):
 
     # 模型配置
     model_cache_dir: str = "/app/models/cache"
+    model_device: str = "0"  # 推理设备：0/1/2 为 GPU 序号，cpu/mps/xpu 为设备类型
+    model_device_backend: str = "cuda"  # GPU 后端：cuda(NVIDIA) 或 musa(摩尔线程)
     auto_load_models: bool = False
     preload_models: str = ""  # 逗号分隔，如 streaming_asr,punctuation
 
