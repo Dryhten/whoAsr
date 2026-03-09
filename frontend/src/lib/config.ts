@@ -40,7 +40,8 @@ export const API_ENDPOINTS = {
 
   // WebSocket 实时识别
   WEBSOCKET: (clientId: string) => `/ws/${clientId}`,
-  WEBSOCKET_VAD: (clientId: string) => `/ws/${clientId}`,  // 复用同一个WebSocket端点
+  WEBSOCKET_VAD: (clientId: string) => `/vad/ws/${clientId}`,
+  WEBSOCKET_REALTIME_NANO: (clientId: string) => `/realtime-nano/ws/${clientId}`,
 } as const;
 
 // 通用API请求配置

@@ -101,8 +101,20 @@ async def detect_voice_activity(file: UploadFile = File(...)):
         if model is None:
             raise HTTPException(status_code=503, detail="VAD model not available")
 
+        config = get_model_config(ModelType.VAD)
+        vad_params = {
+            k: config.config[k]
+            for k in ("max_end_silence_time", "speech_to_sil_time_thres")
+            if config and k in config.config
+        }
+
         logger.info(f"Processing VAD for uploaded file: {file.filename}")
-        model_output = await run_in_threadpool(model.generate, input=temp_file_path)
+        model_output = await run_in_threadpool(
+            model.generate,
+            input=temp_file_path,
+            disable_pbar=True,
+            **vad_params,
+        )
 
         # Extract segments from FunASR VAD output format
         segments = []
@@ -172,6 +184,7 @@ class VADConnectionManager:
             "cache": {},
             "segment_buffer": [],
             "audio_buffer": np.array([], dtype=np.float32),
+            "stream_offset_ms": 0,
         }
         logger.info(f"VAD client {client_id} connected")
 
@@ -205,11 +218,20 @@ async def websocket_vad_endpoint(websocket: WebSocket, client_id: str):
     try:
         model = get_vad_model()
         config = get_model_config(ModelType.VAD)
-        chunk_size_ms = config.config.get("chunk_size", 200)
-        sample_rate = config.config.get("sample_rate", 16000)
+        chunk_size_ms = config.config.get("chunk_size", 200) if config else 200
+        sample_rate = config.config.get("sample_rate", 16000) if config else 16000
         chunk_stride = int(
             chunk_size_ms * sample_rate / 1000
         )  # 3200 samples for 200ms at 16kHz
+        vad_params = (
+            {
+                k: config.config[k]
+                for k in ("max_end_silence_time", "speech_to_sil_time_thres")
+                if k in config.config
+            }
+            if config
+            else {}
+        )
 
         while True:
             # Receive message
@@ -223,45 +245,39 @@ async def websocket_vad_endpoint(websocket: WebSocket, client_id: str):
                     state["cache"] = {}
                     state["segment_buffer"] = []
                     state["audio_buffer"] = np.array([], dtype=np.float32)
+                    state["stream_offset_ms"] = 0
 
                 await vad_manager.send_message(
                     client_id, {"type": "status", "message": "VAD started"}
                 )
 
             elif message.get("type") == "stop_vad":
-                # Process final audio
+                # 处理剩余 buffer，使用 is_final=True 并复用 cache（真正流式）
                 state = vad_manager.get_state(client_id)
                 if state and len(state["audio_buffer"]) > 0:
+                    remaining = state["audio_buffer"]
+                    offset_ms = state.get("stream_offset_ms", 0)
                     final_model_output = await run_in_threadpool(
                         model.generate,
-                        input=state["audio_buffer"],
+                        input=remaining,
                         cache=state["cache"],
                         is_final=True,
                         chunk_size=chunk_size_ms,
+                        disable_pbar=True,
+                        **vad_params,
                     )
 
-                    # Extract segments from FunASR VAD output format
-                    final_segments = []
-                    if final_model_output and len(final_model_output) > 0:
-                        # FunASR VAD returns dict with 'value' key containing the actual segments
-                        first_result = final_model_output[0]
-                        if isinstance(first_result, dict) and "value" in first_result:
-                            final_segments = first_result["value"]
-                        elif isinstance(first_result, list):
-                            final_segments = first_result
-                        else:
-                            logger.warning(
-                                f"Unexpected VAD output format: {type(first_result)}"
-                            )
-
-                    if final_segments and len(final_segments) > 0:
+                    # 仅在有 value 内容时发送
+                    if (
+                        final_model_output
+                        and len(final_model_output) > 0
+                        and isinstance(final_model_output[0], dict)
+                        and "value" in final_model_output[0]
+                        and len(final_model_output[0].get("value") or []) > 0
+                    ):
                         await vad_manager.send_message(
                             client_id,
-                            {
-                                "type": "vad_result",
-                                "segments": final_segments,
-                                "is_final": True,
-                            },
+                            {"type": "vad_result", "raw": final_model_output, "is_final": True},
                         )
 
                 await vad_manager.send_message(
@@ -284,43 +300,34 @@ async def websocket_vad_endpoint(websocket: WebSocket, client_id: str):
                 # Add to buffer
                 state["audio_buffer"] = np.append(state["audio_buffer"], audio_chunk)
 
-                # Process if we have enough data
+                # 按 chunk 流式处理，维护 cache
                 while len(state["audio_buffer"]) >= chunk_stride:
                     speech_chunk = state["audio_buffer"][:chunk_stride].copy()
                     state["audio_buffer"] = state["audio_buffer"][chunk_stride:]
+                    state["stream_offset_ms"] = state.get("stream_offset_ms", 0) + chunk_size_ms
                     try:
-                        # Process VAD with simplified parameters for real-time detection
                         model_output = await run_in_threadpool(
                             model.generate,
                             input=speech_chunk,
+                            cache=state["cache"],
                             is_final=False,
                             chunk_size=chunk_size_ms,
+                            disable_pbar=True,
+                            **vad_params,
                         )
 
-                        # Extract segments from FunASR VAD output format
-                        # Extract segments from FunASR VAD output format
-                        segments = []
-                        if len(model_output[0]["value"]):
-                            segments = model_output[0]["value"]
-
-                        # Check if segments contain valid VAD results
-                        if segments and len(segments) > 0:
-                            # Filter out empty segments and ensure valid data
-                            valid_segments = [
-                                seg for seg in segments if seg and len(seg) > 0
-                            ]
-                            if valid_segments:
-                                await vad_manager.send_message(
-                                    client_id,
-                                    {
-                                        "type": "vad_result",
-                                        "segments": valid_segments,
-                                        "is_final": False,
-                                    },
-                                )
-                                logger.info(
-                                    f"VAD client {client_id}: detected {len(valid_segments)} segments"
-                                )
+                        # 仅在有 value 内容时发送，与 demo 一致
+                        if (
+                            model_output
+                            and len(model_output) > 0
+                            and isinstance(model_output[0], dict)
+                            and "value" in model_output[0]
+                            and len(model_output[0].get("value") or []) > 0
+                        ):
+                            await vad_manager.send_message(
+                                client_id,
+                                {"type": "vad_result", "raw": model_output, "is_final": False},
+                            )
 
                     except Exception as e:
                         logger.error(

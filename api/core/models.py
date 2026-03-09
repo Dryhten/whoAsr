@@ -61,9 +61,10 @@ MODEL_CONFIGS = {
             "model_variant": "fun_asr_nano",
             "batch_size": 1,
             "language": "中文",
-            "itn": True,
+            "itn": True,  # 反向文本正规化：将中文数字转为阿拉伯数字，对身份证号等数字识别至关重要
+            "initial_prompt": "",  # 可选：上下文引导词，如「这是一段执法记录音频，包含大量数字编号」
             "vad_model": "fsmn-vad",
-            "vad_kwargs": {"max_single_segment_time": 30000},
+            "vad_kwargs": {"max_single_segment_time": 60000},  # 官方默认 60s
             "punc_model": "ct-punc",
         },
     ),
@@ -82,8 +83,10 @@ MODEL_CONFIGS = {
         description="基于FSMN-VAD的语音端点检测模型，支持离线和实时检测",
         auto_load=False,
         config={
-            "chunk_size": 200,  # ms
+            "chunk_size": 200,  # ms，与 fsmn-vad 官方一致
             "sample_rate": 16000,
+            "max_end_silence_time": 800,  # 官方默认：尾部静音判停时间(ms)
+            "speech_to_sil_time_thres": 150,  # 官方默认：语音到静音阈值(ms)
         },
     ),
     ModelType.TIMESTAMP: ModelConfig(

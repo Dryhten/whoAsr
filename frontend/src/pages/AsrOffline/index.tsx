@@ -17,6 +17,7 @@ export function AsrOffline() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [hotword, setHotword] = useState("");
+  const [initialPrompt, setInitialPrompt] = useState("");
 
   const handleFileSelect = (event: Event) => {
     const target = event.target as HTMLInputElement;
@@ -42,7 +43,8 @@ export function AsrOffline() {
         selectedFile,
         300, // batchSizeS
         60, // batchSizeThresholdS
-        hotword.trim() || undefined
+        hotword.trim() || undefined,
+        initialPrompt.trim() || undefined
       );
 
       if (response.success && response.results) {
@@ -79,6 +81,7 @@ export function AsrOffline() {
     setResult("");
     setError("");
     setHotword("");
+    setInitialPrompt("");
     // Reset file input
     const fileInput = document.getElementById("file-input") as HTMLInputElement;
     if (fileInput) {
@@ -213,7 +216,21 @@ export function AsrOffline() {
                       type="text"
                       value={hotword}
                       onChange={(e) => setHotword(e.currentTarget.value)}
-                      placeholder="输入热词以提高识别准确率"
+                      placeholder="如：身份证号 手机号 报警人"
+                      className={`w-full ${spacing.form.input} border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent`}
+                    />
+                  </div>
+
+                  {/* Initial Prompt - 上下文引导 */}
+                  <div className={spacing.form.field}>
+                    <label className={`block text-sm font-medium ${spacing.form.label}`}>
+                      上下文引导 (可选)
+                    </label>
+                    <input
+                      type="text"
+                      value={initialPrompt}
+                      onChange={(e) => setInitialPrompt(e.currentTarget.value)}
+                      placeholder="如：这是一段执法记录音频，包含大量数字编号"
                       className={`w-full ${spacing.form.input} border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent`}
                     />
                   </div>

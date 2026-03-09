@@ -21,7 +21,9 @@ export function App() {
           <Route path="/asr" component={Asr} />
           <Route path="/asr-offline" component={AsrOffline} />
           <Route path="/punctuation" component={Punctuation} />
-          <Route path="/vad" component={Vad} />
+          <Route path="/vad-offline" component={Vad} />
+          <Route path="/vad-realtime" component={Vad} />
+          <Route path="/vad-nano" component={Vad} />
           <Route path="/timestamp" component={Timestamp} />
           <Route default component={NotFound} />
         </Router>

@@ -57,6 +57,22 @@ def cleanup_temp_file(file_path: Path) -> None:
     except Exception as e:
         logger.warning(f"Failed to cleanup temp file {file_path}: {e}")
 
+
+def write_float32_to_temp_wav(
+    audio: np.ndarray,
+    sample_rate: int = 16000,
+) -> Path:
+    """将 float32 音频数组写入临时 WAV 文件，供离线识别等使用。调用方用完后需 cleanup_temp_file。"""
+    if audio.dtype != np.float32:
+        audio = audio.astype(np.float32)
+    file_path = TEMP_DIR / f"{generate_unique_id()}.wav"
+    try:
+        sf.write(file_path, audio, sample_rate)
+        return file_path
+    except Exception as e:
+        logger.error(f"Error writing temp wav: {e}")
+        raise
+
 def validate_file_exists(file_path: str) -> None:
     """验证文件是否存在"""
     if not os.path.exists(file_path):

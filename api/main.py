@@ -15,19 +15,21 @@ from contextlib import asynccontextmanager
 import os
 from api.core.model import get_loaded_models_status
 from api.core.config import logger
+from api.core.settings import get_settings
 from api.routers.websocket import websocket_endpoint
 from api.routers.model import router as model_router
 from api.routers.offline import router as offline_router
 from api.routers.punctuation import router as punctuation_router
 from api.routers.vad import router as vad_router
 from api.routers.timestamp import router as timestamp_router
+from api.routers.realtime_nano import router as realtime_nano_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # noqa: ARG001
     """Initialize the application on startup and cleanup on shutdown"""
     try:
-        if os.getenv("AUTO_LOAD_MODELS", "false").lower() == "true":
+        if get_settings().auto_load_models:
             logger.info("Auto-loading all models...")
             from api.core.model import load_model_by_type
             from api.core.models import ModelType
@@ -186,7 +188,7 @@ app.include_router(timestamp_router)
 app.include_router(punctuation_router)
 # Register VAD routes
 app.include_router(vad_router)
-
+app.include_router(realtime_nano_router)
 
 # Frontend routes (must be last to catch all non-API routes)
 @app.get("/")
@@ -223,6 +225,7 @@ async def catch_all_frontend_routes(full_path: str):
             "/offline",
             "/punctuation",
             "/vad",
+            "/realtime-nano",
             "/timestamp",
             "/recognize",
         ]

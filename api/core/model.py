@@ -4,6 +4,7 @@ from funasr import AutoModel
 from fastapi.concurrency import run_in_threadpool
 from .config import logger
 from .models import ModelType, get_model_config
+from .text_utils import apply_chinese_numbers_to_result
 
 # 注册 Fun-ASR-Nano 模型 (FunASR 需显式 import 才能加载)
 try:
@@ -68,7 +69,12 @@ def load_model_by_type(model_type: ModelType) -> bool:
             model_instances[model_type] = AutoModel(model=config.model_name)
 
         elif model_type == ModelType.VAD:
-            model_instances[model_type] = AutoModel(model=config.model_name)
+            cfg = config.config
+            load_kwargs = {"model": config.model_name}
+            for key in ("max_end_silence_time", "speech_to_sil_time_thres"):
+                if key in cfg:
+                    load_kwargs[key] = cfg[key]
+            model_instances[model_type] = AutoModel(**load_kwargs)
 
         elif model_type == ModelType.TIMESTAMP:
             model_instances[model_type] = AutoModel(model=config.model_name)
@@ -217,6 +223,7 @@ async def run_offline_recognition(
     batch_size_s: int = 300,
     batch_size_threshold_s: int = 60,
     hotword: str = None,
+    initial_prompt: str = None,
 ):
     """Run offline recognition on audio file"""
     model = get_offline_model()
@@ -232,7 +239,8 @@ async def run_offline_recognition(
 
     try:
         if is_fun_asr_nano:
-            # Fun-ASR-Nano API: input 为 list，支持 hotwords/language/itn
+            # Fun-ASR-Nano API: input 为 list，支持 hotwords/language/itn/initial_prompt
+            # itn=True 将「一三八零零」转为「13800」，对数字/身份证号识别至关重要
             kwargs = {
                 "input": [file_path],
                 "cache": {},
@@ -242,6 +250,9 @@ async def run_offline_recognition(
             }
             if hotword:
                 kwargs["hotwords"] = [w.strip() for w in hotword.split(",") if w.strip()]
+            prompt = initial_prompt or cfg.get("initial_prompt") or ""
+            if prompt:
+                kwargs["initial_prompt"] = prompt
         else:
             # paraformer-zh 等传统 API
             kwargs = {
@@ -253,6 +264,8 @@ async def run_offline_recognition(
                 kwargs["hotword"] = hotword
 
         result = await run_in_threadpool(model.generate, **kwargs)
+        if is_fun_asr_nano and result is not None:
+            result = apply_chinese_numbers_to_result(result)
         return result
     except Exception as e:
         logger.error(f"Failed to run offline recognition: {e}")

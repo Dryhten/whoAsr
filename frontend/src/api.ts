@@ -717,7 +717,8 @@ export class RecognitionAPI {
         file: File,
         batchSizeS: number = 300,
         batchSizeThresholdS: number = 60,
-        hotword?: string
+        hotword?: string,
+        initialPrompt?: string
     ): Promise<RecognitionResponse> {
         const formData = new FormData();
         formData.append('file', file);
@@ -725,6 +726,9 @@ export class RecognitionAPI {
         formData.append('batch_size_threshold_s', batchSizeThresholdS.toString());
         if (hotword) {
             formData.append('hotword', hotword);
+        }
+        if (initialPrompt) {
+            formData.append('initial_prompt', initialPrompt);
         }
 
         const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.RECOGNIZE}`, {
@@ -761,14 +765,32 @@ export type VADSegmentList = VADSegment[];  // List of segments
 export interface VADResponse {
     success: boolean;
     message: string;
-    segments?: VADSegmentList[];
+    /** 片段列表，每项为 [startMs, endMs] */
+    segments?: VADSegmentList;
     file_name?: string;
     file_size?: number;
 }
 
+/** 规范 segments 为真正的 number[][]，避免 JSON 解析出类数组对象 */
+export function normalizeVADSegments(segments: unknown): VADSegmentList {
+    if (segments == null || typeof segments !== "object") return [];
+    const list = Array.isArray(segments) ? segments : Array.from(segments as ArrayLike<unknown>);
+    const result: VADSegmentList = [];
+    for (let i = 0; i < list.length; i++) {
+        const seg = list[i];
+        if (seg == null || typeof seg !== "object") continue;
+        const raw = seg as Record<number, unknown>;
+        const start = Number(raw[0]);
+        const end = Number(raw[1]);
+        if (!Number.isNaN(start) && !Number.isNaN(end)) result.push([start, end]);
+    }
+    return result;
+}
+
 export interface VADWebSocketMessage {
     type: string;
-    segments?: VADSegmentList[];
+    /** 后端返回 List[List[int]]，即 number[][] */
+    segments?: VADSegmentList;
     is_final?: boolean;
     message?: string;
 }
@@ -789,9 +811,8 @@ export class VADWebSocket {
     connect(): Promise<void> {
         return new Promise((resolve, reject) => {
             try {
-                // Use API_BASE_URL to construct WebSocket URL
                 const wsBaseUrl = API_BASE_URL.replace(/^http/, 'ws');
-                const wsUrl = `${wsBaseUrl}/ws/${this.clientId}`;
+                const wsUrl = `${wsBaseUrl}${API_ENDPOINTS.WEBSOCKET_VAD(this.clientId)}`;
 
                 console.log('Connecting VAD WebSocket to:', wsUrl);
                 this.ws = new WebSocket(wsUrl);
@@ -881,6 +902,89 @@ export class VADWebSocket {
     }
 }
 
+// 实时 VAD 切分 + Nano 识别 WebSocket 消息
+export interface RealtimeNanoWebSocketMessage {
+    type: string;
+    text?: string;
+    is_final?: boolean;
+    message?: string;
+}
+
+// 实时识别 (FunASR-Nano) WebSocket 类：协议与 VAD 一致，下行多 recognition_result
+export class RealtimeNanoWebSocket {
+    private ws: WebSocket | null = null;
+    private clientId: string;
+    private onMessage?: (message: RealtimeNanoWebSocketMessage) => void;
+    private onOpen?: () => void;
+    private onClose?: () => void;
+    private onError?: (error: string) => void;
+
+    constructor(clientId: string) {
+        this.clientId = clientId;
+    }
+
+    connect(): Promise<void> {
+        return new Promise((resolve, reject) => {
+            try {
+                const wsBaseUrl = API_BASE_URL.replace(/^http/, 'ws');
+                const wsUrl = `${wsBaseUrl}${API_ENDPOINTS.WEBSOCKET_REALTIME_NANO(this.clientId)}`;
+                this.ws = new WebSocket(wsUrl);
+                this.ws.onopen = () => {
+                    if (this.onOpen) this.onOpen();
+                    resolve();
+                };
+                this.ws.onmessage = (event) => {
+                    try {
+                        const message: RealtimeNanoWebSocketMessage = JSON.parse(event.data);
+                        if (this.onMessage) this.onMessage(message);
+                    } catch (e) {
+                        console.error('RealtimeNano message parse error:', e);
+                    }
+                };
+                this.ws.onclose = () => { if (this.onClose) this.onClose(); };
+                this.ws.onerror = (err) => {
+                    const msg = `RealtimeNano WebSocket error: ${err}`;
+                    if (this.onError) this.onError(msg);
+                    reject(new Error(msg));
+                };
+            } catch (e) {
+                reject(e);
+            }
+        });
+    }
+
+    disconnect() {
+        if (this.ws) { this.ws.close(); this.ws = null; }
+    }
+
+    sendStart() {
+        if (this.ws?.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({ type: 'start_vad' }));
+        }
+    }
+
+    sendStop() {
+        if (this.ws?.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({ type: 'stop_vad' }));
+        }
+    }
+
+    sendAudioChunk(audioData: string) {
+        if (this.ws?.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({ type: 'audio_chunk', data: audioData }));
+        }
+    }
+
+    isConnected(): boolean {
+        return this.ws?.readyState === WebSocket.OPEN;
+    }
+
+    onMessageReceived(cb: (message: RealtimeNanoWebSocketMessage) => void) { this.onMessage = cb; }
+    onConnectionOpen(cb: () => void) { this.onOpen = cb; }
+    onConnectionClose(cb: () => void) { this.onClose = cb; }
+    onConnectionError(cb: (error: string) => void) { this.onError = cb; }
+}
+
 // VAD API class
 export class VADAPI {
     static async uploadAndDetect(file: File): Promise<VADResponse> {
@@ -896,7 +1000,11 @@ export class VADAPI {
             throw new Error(`VAD detection failed: ${response.status}`);
         }
 
-        return response.json();
+        const data = await response.json() as VADResponse;
+        if (data.segments != null) {
+            data.segments = normalizeVADSegments(data.segments);
+        }
+        return data;
     }
 
     // 保留旧方法以确保兼容性

@@ -33,6 +33,7 @@ async def recognize_audio_file(
     batch_size_s: Optional[int] = Form(300),
     batch_size_threshold_s: Optional[int] = Form(60),
     hotword: Optional[str] = Form(None),
+    initial_prompt: Optional[str] = Form(None),
 ):
     """Upload and perform offline recognition on audio file"""
     temp_file_path = None
@@ -56,6 +57,7 @@ async def recognize_audio_file(
             batch_size_s=batch_size_s,
             batch_size_threshold_s=batch_size_threshold_s,
             hotword=hotword,
+            initial_prompt=initial_prompt,
         )
 
         return OfflineRecognitionResponse(
