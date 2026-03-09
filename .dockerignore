@@ -1,0 +1,35 @@
+# Git
+.git
+.gitignore
+
+# Python
+.venv
+__pycache__
+*.py[oc]
+*.egg-info
+.python-version
+
+# Node
+node_modules
+frontend/node_modules
+frontend/dist
+
+# 开发/测试（.env 由 docker-compose env_file 在运行时加载，不参与构建）
+.env
+.env.*
+!.env.example
+*.md
+!README.md
+.claude
+.cursor
+.idea
+.qodo
+plans
+curl_test
+example
+scripts
+docs
+
+# 构建产物
+*.log
+tmp

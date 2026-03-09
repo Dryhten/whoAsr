@@ -15,7 +15,7 @@ RUN npm ci && \
 # ================================
 # Python 生产环境
 # ================================
-FROM python:3.13-slim as production
+FROM python:3.12-slim as production
 
 # 设置工作目录
 WORKDIR /app
@@ -38,8 +38,8 @@ RUN pip install uv
 # 复制 Python 依赖文件
 COPY pyproject.toml uv.lock ./
 
-# 安装 Python 依赖
-RUN uv sync --frozen --no-dev
+# 安装 Python 依赖（GPU 版本，需 CUDA 12.4 + nvidia-container-toolkit）
+RUN uv sync --frozen --no-dev --extra gpu
 
 # 复制后端代码
 COPY api/ ./api/
