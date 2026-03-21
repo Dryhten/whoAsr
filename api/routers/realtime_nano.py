@@ -1,12 +1,13 @@
 """WebSocket: 实时 VAD 切分 + FunASR-Nano 离线识别，实现基于 Nano 的准实时 ASR"""
 
+import asyncio
 import json
 import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
 
 from ..core.model import (
-    get_vad_model,
+    create_vad_streaming_model,
     is_vad_model_loaded,
     is_offline_model_loaded,
     run_offline_recognition,
@@ -87,6 +88,9 @@ class RealtimeNanoManager:
             "in_speech": False,  # 是否处于活跃语音片段内（收到 [start,-1] 后、[-1,end] 前）
             "pending_flush": False,  # 收到 [-1,end] 后待 flush，若下一 chunk 有 [start,-1] 则视为连续不 flush
             "initial_prompt": "",  # 上下文引导词，用于 FunASR-Nano
+            "flush_lock": asyncio.Lock(),
+            "flush_tasks": set(),
+            "utterance_seq": 0,
         }
         logger.info(f"RealtimeNano client {client_id} connected")
 
@@ -108,8 +112,58 @@ class RealtimeNanoManager:
 realtime_nano_manager = RealtimeNanoManager()
 
 
-async def _flush_utterance_to_asr(client_id: str, state: dict, sample_rate: int):
-    """将 current_utterance_buffer 写入临时 WAV，调用离线识别，推送结果并清空缓冲"""
+async def _flush_snapshot_to_asr(
+    client_id: str,
+    buf: np.ndarray,
+    sample_rate: int,
+    utterance_seq: int,
+    initial_prompt: str | None,
+):
+    """对快照缓冲跑离线识别并推送（不读写 state 中的 current_utterance_buffer）"""
+    if buf is None or len(buf) == 0:
+        return
+    temp_path = None
+    try:
+        temp_path = write_float32_to_temp_wav(buf, sample_rate)
+        result = await run_offline_recognition(
+            file_path=str(temp_path),
+            initial_prompt=initial_prompt,
+        )
+        text = _extract_text_from_offline_result(result)
+        text = chinese_numbers_to_arabic(text)
+        if client_id not in realtime_nano_manager.active_connections:
+            return
+        await realtime_nano_manager.send_message(
+            client_id,
+            {
+                "type": "recognition_result",
+                "text": text or "",
+                "is_final": False,
+                "utterance_seq": utterance_seq,
+            },
+        )
+        if text:
+            logger.info(f"RealtimeNano client {client_id} recognized: {text[:80]}...")
+        else:
+            logger.debug(
+                f"RealtimeNano client {client_id} flush returned empty text, raw result type={type(result)}"
+            )
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        logger.error(f"RealtimeNano flush ASR error for {client_id}: {e}")
+        if client_id in realtime_nano_manager.active_connections:
+            await realtime_nano_manager.send_message(
+                client_id,
+                {"type": "error", "message": f"识别失败: {str(e)}"},
+            )
+    finally:
+        if temp_path is not None:
+            cleanup_temp_file(temp_path)
+
+
+def _schedule_flush_utterance(client_id: str, state: dict, sample_rate: int):
+    """快照 current_utterance_buffer、立即清空，异步跑识别，不阻塞 WebSocket 收包循环。"""
     buf = state.get("current_utterance_buffer")
     if buf is None or len(buf) == 0:
         return
@@ -117,34 +171,42 @@ async def _flush_utterance_to_asr(client_id: str, state: dict, sample_rate: int)
     if duration_s < MIN_UTTERANCE_DURATION_S:
         state["current_utterance_buffer"] = np.array([], dtype=np.float32)
         return
-    temp_path = None
-    try:
-        temp_path = write_float32_to_temp_wav(buf, sample_rate)
-        initial_prompt = (state.get("initial_prompt") or "").strip() or None
-        result = await run_offline_recognition(
-            file_path=str(temp_path),
-            initial_prompt=initial_prompt,
-        )
-        text = _extract_text_from_offline_result(result)
-        text = chinese_numbers_to_arabic(text)
-        await realtime_nano_manager.send_message(
-            client_id,
-            {"type": "recognition_result", "text": text or "", "is_final": False},
-        )
-        if text:
-            logger.info(f"RealtimeNano client {client_id} recognized: {text[:80]}...")
-        else:
-            logger.debug(f"RealtimeNano client {client_id} flush returned empty text, raw result type={type(result)}")
-    except Exception as e:
-        logger.error(f"RealtimeNano flush ASR error for {client_id}: {e}")
-        await realtime_nano_manager.send_message(
-            client_id,
-            {"type": "error", "message": f"识别失败: {str(e)}"},
-        )
-    finally:
-        if temp_path is not None:
-            cleanup_temp_file(temp_path)
+    snapshot = np.asarray(buf, dtype=np.float32).copy()
     state["current_utterance_buffer"] = np.array([], dtype=np.float32)
+    state["utterance_seq"] = int(state.get("utterance_seq", 0)) + 1
+    seq = state["utterance_seq"]
+    initial_prompt = (state.get("initial_prompt") or "").strip() or None
+    lock = state["flush_lock"]
+    tasks: set = state["flush_tasks"]
+
+    task_holder: dict = {}
+
+    async def _run():
+        try:
+            async with lock:
+                await _flush_snapshot_to_asr(
+                    client_id, snapshot, sample_rate, seq, initial_prompt
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.error(f"RealtimeNano flush task error for {client_id}: {e}")
+        finally:
+            t = task_holder.get("task")
+            if t is not None:
+                tasks.discard(t)
+
+    t = asyncio.create_task(_run())
+    task_holder["task"] = t
+    tasks.add(t)
+
+
+def _cancel_flush_tasks(state: dict | None):
+    if not state:
+        return
+    for t in list(state.get("flush_tasks", set())):
+        t.cancel()
+    state["flush_tasks"] = set()
 
 
 router = APIRouter(prefix="/realtime-nano", tags=["realtime-nano"])
@@ -161,7 +223,14 @@ async def websocket_realtime_nano_endpoint(websocket: WebSocket, client_id: str)
         return
 
     await realtime_nano_manager.connect(websocket, client_id)
-    vad_model = get_vad_model()
+    try:
+        vad_model = create_vad_streaming_model()
+    except Exception as e:
+        logger.error(f"RealtimeNano: failed to create VAD instance for {client_id}: {e}")
+        realtime_nano_manager.disconnect(client_id)
+        await websocket.close(code=1013, reason="VAD instance creation failed")
+        return
+
     config = get_model_config(ModelType.VAD)
     chunk_size_ms = config.config.get("chunk_size", 200)
     sample_rate = config.config.get("sample_rate", 16000)
@@ -176,18 +245,20 @@ async def websocket_realtime_nano_endpoint(websocket: WebSocket, client_id: str)
                 continue
 
             if message.get("type") == "start_vad" or message.get("type") == "start":
+                _cancel_flush_tasks(state)
                 state["audio_buffer"] = np.array([], dtype=np.float32)
                 state["cache"] = {}
                 state["current_utterance_buffer"] = np.array([], dtype=np.float32)
                 state["in_speech"] = False
                 state["pending_flush"] = False
+                state["utterance_seq"] = 0
                 state["initial_prompt"] = message.get("initial_prompt") or ""
                 await realtime_nano_manager.send_message(
                     client_id, {"type": "status", "message": "VAD started"}
                 )
 
             elif message.get("type") == "stop_vad" or message.get("type") == "stop":
-                await _flush_utterance_to_asr(client_id, state, sample_rate)
+                _schedule_flush_utterance(client_id, state, sample_rate)
                 await realtime_nano_manager.send_message(
                     client_id, {"type": "status", "message": "VAD stopped"}
                 )
@@ -231,7 +302,7 @@ async def websocket_realtime_nano_endpoint(websocket: WebSocket, client_id: str)
                                 state["pending_flush"] = False
                                 state["in_speech"] = True
                             else:
-                                await _flush_utterance_to_asr(client_id, state, sample_rate)
+                                _schedule_flush_utterance(client_id, state, sample_rate)
                                 state["pending_flush"] = False
 
                         if has_speech_start:
@@ -260,7 +331,10 @@ async def websocket_realtime_nano_endpoint(websocket: WebSocket, client_id: str)
                 )
 
     except WebSocketDisconnect:
-        realtime_nano_manager.disconnect(client_id)
+        pass
     except Exception as e:
         logger.error(f"RealtimeNano WebSocket error for client {client_id}: {e}")
+    finally:
+        state = realtime_nano_manager.get_state(client_id)
+        _cancel_flush_tasks(state)
         realtime_nano_manager.disconnect(client_id)

@@ -1,5 +1,6 @@
 """VAD (Voice Activity Detection) API routes"""
 
+import asyncio
 import os
 import tempfile
 import uuid
@@ -19,7 +20,7 @@ from fastapi import (
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
-from ..core.model import get_vad_model, is_vad_model_loaded
+from ..core.model import create_vad_streaming_model, get_vad_model, is_vad_model_loaded
 from ..core.models import ModelType, get_model_config
 from ..core.schemas import ProcessingResponse
 from ..core.file_utils import cleanup_temp_files
@@ -29,6 +30,9 @@ from ..core.audio import decode_audio_chunk
 
 # Temporary directory for file uploads
 TEMP_DIR = tempfile.gettempdir()
+
+# 串行化 HTTP 上传检测，避免与全局 VAD 单例并发 generate 时内部状态冲突
+_vad_http_lock = asyncio.Lock()
 
 router = APIRouter(prefix="/vad", tags=["VAD"])
 
@@ -109,12 +113,13 @@ async def detect_voice_activity(file: UploadFile = File(...)):
         }
 
         logger.info(f"Processing VAD for uploaded file: {file.filename}")
-        model_output = await run_in_threadpool(
-            model.generate,
-            input=temp_file_path,
-            disable_pbar=True,
-            **vad_params,
-        )
+        async with _vad_http_lock:
+            model_output = await run_in_threadpool(
+                model.generate,
+                input=temp_file_path,
+                disable_pbar=True,
+                **vad_params,
+            )
 
         # Extract segments from FunASR VAD output format
         segments = []
@@ -216,7 +221,14 @@ async def websocket_vad_endpoint(websocket: WebSocket, client_id: str):
     await vad_manager.connect(websocket, client_id)
 
     try:
-        model = get_vad_model()
+        model = create_vad_streaming_model()
+    except Exception as e:
+        logger.error(f"VAD WebSocket: failed to create per-connection model for {client_id}: {e}")
+        vad_manager.disconnect(client_id)
+        await websocket.close(code=1013, reason="VAD instance creation failed")
+        return
+
+    try:
         config = get_model_config(ModelType.VAD)
         chunk_size_ms = config.config.get("chunk_size", 200) if config else 200
         sample_rate = config.config.get("sample_rate", 16000) if config else 16000
@@ -345,7 +357,8 @@ async def websocket_vad_endpoint(websocket: WebSocket, client_id: str):
                 await vad_manager.send_message(client_id, {"type": "pong"})
 
     except WebSocketDisconnect:
-        vad_manager.disconnect(client_id)
+        pass
     except Exception as e:
         logger.error(f"WebSocket error for client {client_id}: {e}")
+    finally:
         vad_manager.disconnect(client_id)

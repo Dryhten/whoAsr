@@ -33,6 +33,31 @@ model_instances = {
 }
 
 
+def _vad_automodel_from_config(config, device: str):
+    """Construct a VAD AutoModel (same kwargs as load_model_by_type VAD branch)."""
+    cfg = config.config or {}
+    load_kwargs = {"model": config.model_name, "device": device}
+    for key in ("max_end_silence_time", "speech_to_sil_time_thres"):
+        if key in cfg:
+            load_kwargs[key] = cfg[key]
+    return AutoModel(**load_kwargs)
+
+
+def create_vad_streaming_model():
+    """Dedicated VAD instance for one WebSocket stream; not registered in model_instances.
+
+    Requires global VAD to be loaded first so weights/cache expectations match production.
+    """
+    if not is_model_loaded_by_type(ModelType.VAD):
+        raise RuntimeError("VAD must be loaded before creating a streaming instance")
+    config = get_model_config(ModelType.VAD)
+    if not config:
+        raise RuntimeError("No configuration for VAD")
+    device = _resolve_device(get_settings().model_device)
+    logger.debug("Creating per-connection VAD AutoModel instance")
+    return _vad_automodel_from_config(config, device)
+
+
 def load_model_by_type(model_type: ModelType) -> bool:
     """Load model by type using configuration"""
     global model_instances
@@ -83,12 +108,7 @@ def load_model_by_type(model_type: ModelType) -> bool:
             model_instances[model_type] = AutoModel(model=config.model_name, device=device)
 
         elif model_type == ModelType.VAD:
-            cfg = config.config
-            load_kwargs = {"model": config.model_name, "device": device}
-            for key in ("max_end_silence_time", "speech_to_sil_time_thres"):
-                if key in cfg:
-                    load_kwargs[key] = cfg[key]
-            model_instances[model_type] = AutoModel(**load_kwargs)
+            model_instances[model_type] = _vad_automodel_from_config(config, device)
 
         elif model_type == ModelType.TIMESTAMP:
             model_instances[model_type] = AutoModel(model=config.model_name, device=device)
