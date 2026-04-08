@@ -62,7 +62,7 @@ MODEL_CONFIGS = {
             "batch_size": 1,
             "language": "中文",
             "itn": True,  # 反向文本正规化：将中文数字转为阿拉伯数字，对身份证号等数字识别至关重要
-            "initial_prompt": "",  # 可选：上下文引导词，如「这是一段执法记录音频，包含大量数字编号」
+            "initial_prompt": "这是一段中文语音音频，请根据音频内容进行识别",  # 可选：上下文引导词，如「这是一段执法记录音频，包含大量数字编号」
             "vad_model": "fsmn-vad",
             "vad_kwargs": {"max_single_segment_time": 60000},  # 官方默认 60s
             "punc_model": "ct-punc",
